@@ -88,6 +88,25 @@ function formatDollars(cents: number) {
   }).format(cents / 100);
 }
 
+function formatDollarAmount(cents: number) {
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: cents % 100 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(cents / 100);
+}
+
+function elapsedTime(value: string, relativeTo: string) {
+  const minutes = Math.max(0, Math.floor((new Date(relativeTo).getTime() - new Date(value).getTime()) / 60_000));
+  if (minutes < 1) return "moments";
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `${hours} hour${hours === 1 ? "" : "s"}`;
+  const days = Math.floor(hours / 24);
+  if (days < 60) return `${days} day${days === 1 ? "" : "s"}`;
+  const months = Math.floor(days / 30);
+  return `${months} month${months === 1 ? "" : "s"}`;
+}
+
 function relativeTime(value: string, relativeTo: string) {
   const seconds = Math.max(0, Math.floor((new Date(relativeTo).getTime() - new Date(value).getTime()) / 1000));
   if (seconds < 60) return "just now";
@@ -261,9 +280,14 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
     });
   }, [category, products, query, sortMode]);
 
-  const tickerItems = data.categories.length
+  const tickerItems = data.categories.length > 1
     ? data.categories.map((item) => `${item.name} · ${formatInteger(item.count)}`)
-    : ["New listings start at $5", "One-time bids", "Stay listed until outbid", "Live click tracking"];
+    : [
+        `${formatInteger(data.stats.products)} live product${data.stats.products === 1 ? "" : "s"}`,
+        `${formatInteger(data.stats.totalClicks)} tracked click${data.stats.totalClicks === 1 ? "" : "s"}`,
+        `Placements start at ${formatDollars(data.stats.minimumBidCents)}`,
+        "Bids set the rank",
+      ];
 
   function chooseRank(rank: 1 | 3 | 10) {
     checkoutRequestId.current = null;
@@ -639,6 +663,25 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
             <div className="float-card card-front"><span>#1</span><i>{products[0]?.name.slice(0, 1).toUpperCase() ?? "+"}</i><strong>{products[0]?.name ?? "Position available"}</strong><small>{products[0] ? `${formatInteger(products[0].totalClicks)} tracked visits` : `Starts at ${formatDollars(data.stats.minimumBidCents)}`}</small></div>
           </div>
         </section>
+
+        {data.available && <section className="live-proof-section" aria-labelledby="live-proof-title">
+          <div className="live-proof-orbit proof-orbit-one" aria-hidden="true" />
+          <div className="live-proof-orbit proof-orbit-two" aria-hidden="true" />
+          <div className="container live-proof-inner">
+            <div className="live-proof-kicker"><i /> Live production data</div>
+            <h2 id="live-proof-title">This tiny leaderboard now has</h2>
+            <div className="live-proof-value" aria-label={`${formatDollars(data.stats.confirmedBidCents)} in confirmed placement value`}>
+              <span>$</span><strong>{formatDollarAmount(data.stats.confirmedBidCents)}</strong>
+            </div>
+            <p>in confirmed placement value on the board</p>
+            <div className="live-proof-details">
+              <span><strong>{formatDollars(data.stats.paidBidCents)}</strong> paid bids</span>
+              <i aria-hidden="true" />
+              <span><strong>{formatDollars(data.stats.creditBidCents)}</strong> founder credits</span>
+              {data.stats.launchedAt && <><i aria-hidden="true" /><span>live for <strong><time dateTime={data.stats.launchedAt}>{elapsedTime(data.stats.launchedAt, data.generatedAt)}</time></strong></span></>}
+            </div>
+          </div>
+        </section>}
       </main>
 
       <footer className="site-footer">

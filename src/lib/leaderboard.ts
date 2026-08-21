@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gt, max, sql, sum } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, max, min, sql } from "drizzle-orm";
 import { getDatabase, isDatabaseConfigured } from "@/db";
 import { bids, outboundClicks, products, visitors } from "@/db/schema";
 import { BID_INCREMENT_CENTS, MINIMUM_BID_CENTS } from "@/lib/constants";
@@ -28,6 +28,10 @@ export function emptyLeaderboard(
       onlineVisitors: 0,
       totalVisitors: 0,
       minimumBidCents: MINIMUM_BID_CENTS,
+      confirmedBidCents: 0,
+      paidBidCents: 0,
+      creditBidCents: 0,
+      launchedAt: null,
     },
     positionPrices: { ...emptyPositionPrices },
     generatedAt: new Date().toISOString(),
@@ -109,6 +113,17 @@ export async function getLeaderboardData(): Promise<LeaderboardPayload> {
       .groupBy(products.category)
       .orderBy(desc(count()));
 
+    const boardTotalsQuery = db
+      .select({
+        confirmedBidCents: sql<number>`coalesce(sum(${bids.amountCents} - ${bids.refundedCents}), 0)`.mapWith(Number),
+        paidBidCents: sql<number>`coalesce(sum(case when ${bids.fundingSource} = 'stripe' then ${bids.amountCents} - ${bids.refundedCents} else 0 end), 0)`.mapWith(Number),
+        creditBidCents: sql<number>`coalesce(sum(case when ${bids.fundingSource} = 'credit' then ${bids.amountCents} - ${bids.refundedCents} else 0 end), 0)`.mapWith(Number),
+        launchedAt: min(bids.paidAt).as("launched_at"),
+      })
+      .from(bids)
+      .innerJoin(products, eq(bids.productId, products.id))
+      .where(and(eq(bids.status, "paid"), eq(products.status, "active")));
+
     const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
     const [
       leaderboardRows,
@@ -118,6 +133,7 @@ export async function getLeaderboardData(): Promise<LeaderboardPayload> {
       clickCountRows,
       onlineRows,
       visitorCountRows,
+      boardTotalsRows,
     ] = await Promise.all([
       leaderboardQuery,
       activityQuery,
@@ -126,6 +142,7 @@ export async function getLeaderboardData(): Promise<LeaderboardPayload> {
       db.select({ value: count() }).from(outboundClicks),
       db.select({ value: count() }).from(visitors).where(gt(visitors.lastSeenAt, twoMinutesAgo)),
       db.select({ value: count() }).from(visitors),
+      boardTotalsQuery,
     ]);
 
     const rankedProducts = leaderboardRows.map((row, index) => ({
@@ -168,6 +185,10 @@ export async function getLeaderboardData(): Promise<LeaderboardPayload> {
         onlineVisitors: onlineRows[0]?.value ?? 0,
         totalVisitors: visitorCountRows[0]?.value ?? 0,
         minimumBidCents: MINIMUM_BID_CENTS,
+        confirmedBidCents: boardTotalsRows[0]?.confirmedBidCents ?? 0,
+        paidBidCents: boardTotalsRows[0]?.paidBidCents ?? 0,
+        creditBidCents: boardTotalsRows[0]?.creditBidCents ?? 0,
+        launchedAt: boardTotalsRows[0]?.launchedAt?.toISOString() ?? null,
       },
       positionPrices: {
         "1": priceForPosition(1),

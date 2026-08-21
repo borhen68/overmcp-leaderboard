@@ -916,6 +916,49 @@
   .card-back { transform: translate(-78%, -70%) rotate(-9deg); opacity: .82; }
   @keyframes float-card { 50% { transform: translate(-38%, -36%) rotate(3deg); } }
 
+  .live-proof-section {
+    min-height: 650px;
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+    padding: 104px 0 112px;
+    border-top: 1px solid var(--line);
+    background:
+      radial-gradient(circle at 50% 58%, rgba(220, 255, 69, .2), transparent 31rem),
+      var(--surface-raised);
+  }
+  .live-proof-inner { position: relative; z-index: 1; text-align: center; }
+  .live-proof-kicker { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+  .live-proof-kicker i { width: 7px; height: 7px; display: block; border-radius: 50%; background: #63df87; box-shadow: 0 0 0 5px rgba(99, 223, 135, .12); }
+  .live-proof-section h2 { margin: 25px 0 31px; color: var(--muted); font-size: clamp(25px, 2.8vw, 39px); font-weight: 520; letter-spacing: -.045em; }
+  .live-proof-value {
+    width: min(760px, 100%);
+    min-height: 210px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 13px;
+    margin-inline: auto;
+    padding: 28px 46px;
+    color: var(--ink);
+    border: 1px solid rgba(23, 25, 20, .07);
+    border-radius: 38px;
+    background: #fff;
+    box-shadow: 0 31px 75px rgba(35, 40, 24, .12), inset 0 1px 0 rgba(255,255,255,.9);
+  }
+  .live-proof-value span { align-self: center; color: var(--orange); font-family: Georgia, "Times New Roman", serif; font-size: clamp(63px, 8vw, 108px); line-height: 1; }
+  .live-proof-value strong { font-size: clamp(86px, 11vw, 155px); line-height: .82; letter-spacing: -.075em; font-variant-numeric: tabular-nums; }
+  .live-proof-inner > p { margin: 29px 0 0; color: var(--muted); font-size: clamp(18px, 2vw, 27px); letter-spacing: -.025em; }
+  .live-proof-details { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 13px; margin-top: 25px; color: var(--muted-2); font-size: 10px; letter-spacing: .02em; }
+  .live-proof-details span { padding: 8px 11px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.62); }
+  .live-proof-details strong { color: var(--text); font-weight: 760; }
+  .live-proof-details > i { width: 3px; height: 3px; border-radius: 50%; background: var(--orange); }
+  .live-proof-orbit { position: absolute; z-index: 0; border: 48px solid var(--lime); border-radius: 50%; opacity: .42; }
+  .proof-orbit-one { width: 310px; height: 310px; left: -154px; bottom: -108px; }
+  .proof-orbit-two { width: 215px; height: 215px; right: -105px; top: -62px; border-color: var(--orange); opacity: .16; }
+
   .site-footer { padding: 72px 0 22px; border-top: 1px solid var(--line); background: var(--surface); }
   .footer-top { display: grid; grid-template-columns: 1.55fr .7fr .7fr 1.2fr; gap: 45px; padding-bottom: 58px; }
   .footer-top > div:first-child p { max-width: 250px; margin: 19px 0 0; color: var(--muted); font-size: 12px; }
@@ -1126,6 +1169,8 @@
     .cta-copy { margin-inline: auto; }
     .cta-copy .eyebrow { justify-content: center; }
     .cta-card-stack { height: 320px; }
+    .live-proof-section { min-height: 590px; padding-block: 86px 92px; }
+    .live-proof-value { width: min(680px, 100%); min-height: 190px; }
     .footer-top { grid-template-columns: 1.4fr 1fr 1fr; }
     .footer-newsletter { grid-column: 1 / -1; }
   }
@@ -1170,6 +1215,14 @@
     .builder-cta { width: calc(100% - 24px); margin-block: 60px; padding: 48px 20px 5px; border-radius: 18px; }
     .cta-copy h2 { font-size: 49px; }
     .cta-card-stack { transform: scale(.85); margin-inline: -30px; height: 295px; }
+    .live-proof-section { min-height: 500px; padding-block: 70px 76px; }
+    .live-proof-section h2 { margin: 19px 0 24px; font-size: 24px; }
+    .live-proof-value { min-height: 150px; padding: 23px 15px; border-radius: 25px; }
+    .live-proof-value span { font-size: 58px; }
+    .live-proof-value strong { font-size: clamp(68px, 24vw, 108px); }
+    .live-proof-inner > p { margin-top: 23px; font-size: 17px; }
+    .live-proof-details { gap: 8px; margin-top: 20px; }
+    .live-proof-details > i { display: none; }
     .footer-top { grid-template-columns: 1fr 1fr; }
     .footer-top > div:first-child, .footer-newsletter { grid-column: 1 / -1; }
     .footer-bottom { grid-template-columns: 1fr auto; }

@@ -40,6 +40,10 @@ export type LeaderboardPayload = {
     onlineVisitors: number;
     totalVisitors: number;
     minimumBidCents: number;
+    confirmedBidCents: number;
+    paidBidCents: number;
+    creditBidCents: number;
+    launchedAt: string | null;
   };
   positionPrices: Record<"1" | "3" | "10", number>;
   generatedAt: string;
