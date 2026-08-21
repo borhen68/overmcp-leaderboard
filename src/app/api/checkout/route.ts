@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, max, sql } from "drizzle-orm";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getDatabase, isDatabaseConfigured } from "@/db";
 import { bids, products } from "@/db/schema";
@@ -28,6 +28,16 @@ const checkoutSchema = z.object({
   iconDataUrl: z.string().max(128_100).optional(),
   iconSignature: z.string().regex(/^[a-f0-9]{64}$/).optional(),
 });
+
+function dataFastMetadata(request: NextRequest) {
+  const visitorId = request.cookies.get("datafast_visitor_id")?.value;
+  const sessionId = request.cookies.get("datafast_session_id")?.value;
+
+  return {
+    ...(visitorId && visitorId.length <= 500 ? { datafast_visitor_id: visitorId } : {}),
+    ...(sessionId && sessionId.length <= 500 ? { datafast_session_id: sessionId } : {}),
+  };
+}
 
 function publicOrigin(request: Request) {
   const configured = process.env.NEXT_PUBLIC_APP_URL;
@@ -116,7 +126,7 @@ async function pendingCheckoutBidForProduct(productId: string): Promise<Checkout
 }
 
 async function createCheckoutSession(
-  request: Request,
+  request: NextRequest,
   bid: CheckoutBid,
   targetRank: 1 | 3 | 10,
   requestId: string,
@@ -149,6 +159,7 @@ async function createCheckoutSession(
       product_id: bid.productId,
       target_rank: String(targetRank),
       target_total_cents: String(bid.targetTotalCents),
+      ...dataFastMetadata(request),
     },
     payment_intent_data: {
       metadata: {
@@ -169,7 +180,7 @@ async function createCheckoutSession(
 }
 
 async function resumeCheckout(
-  request: Request,
+  request: NextRequest,
   existingBid: CheckoutBid,
   input: z.infer<typeof checkoutSchema>,
   identityKey: string,
@@ -209,7 +220,7 @@ async function resumeCheckout(
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   if (!isDatabaseConfigured() || !process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) {
     return NextResponse.json({ error: "Checkout is not configured yet." }, { status: 503 });
   }
