@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "db:migrate": "node --env-file-if-exists=.env.local scripts/migrate.mjs"
+    "db:migrate": "node --env-file-if-exists=.env.local scripts/migrate.mjs",
+    "video:audio": "node video/generate-audio.mjs",
+    "video:studio": "remotion studio video/index.tsx",
+    "video:render": "npm run video:audio && remotion render video/index.tsx OverMCPXPromo renders/overmcp-x-promo.mp4 --codec=h264 --crf=17 --pixel-format=yuv420p --overwrite"
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",
@@ -19,9 +22,11 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@remotion/cli": "^4.0.515",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "remotion": "^4.0.515",
     "typescript": "^5.9.0"
   }
 }
