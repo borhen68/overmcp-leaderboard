@@ -1,17 +1,20 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
-const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+const siteUrl = "https://www.overmcp.com";
+const siteTitle = "OverMCP — The live product leaderboard";
+const siteDescription =
+  "Discover products, follow real clicks, and bid for the top spot on a transparent live leaderboard.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "OverMCP — The internet’s live product leaderboard",
+    default: siteTitle,
     template: "%s · OverMCP",
   },
-  description:
-    "Discover products worth your attention—or bid to put yours at the top of the internet’s live product leaderboard.",
+  description: siteDescription,
   applicationName: "OverMCP",
+  alternates: { canonical: "/" },
   keywords: [
     "product leaderboard",
     "startup discovery",
@@ -20,19 +23,33 @@ export const metadata: Metadata = {
     "indie products",
   ],
   openGraph: {
-    title: "OverMCP — The internet’s live product leaderboard",
-    description:
-      "Discover what’s winning, follow live bids, or claim the top spot for your product.",
+    title: siteTitle,
+    description: siteDescription,
     type: "website",
+    url: "/",
     siteName: "OverMCP",
+    locale: "en_US",
+    images: [{
+      url: "/opengraph-image",
+      width: 1200,
+      height: 630,
+      alt: "OverMCP live product leaderboard",
+    }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "OverMCP — The internet’s live product leaderboard",
-    description:
-      "The transparent, competitive leaderboard for products worth discovering.",
+    title: siteTitle,
+    description: siteDescription,
+    images: ["/opengraph-image"],
   },
-  icons: { icon: "/icon.svg" },
+  icons: {
+    icon: [
+      { url: "/icon-64.png", type: "image/png", sizes: "64x64" },
+      { url: "/icon.svg", type: "image/svg+xml", sizes: "any" },
+    ],
+    shortcut: "/icon-64.png",
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export const viewport: Viewport = {

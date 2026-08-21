@@ -6,6 +6,7 @@ export type LeaderboardProduct = {
   category: string;
   hasIcon: boolean;
   bidCents: number;
+  creditCents: number;
   weeklyClicks: number;
   totalClicks: number;
   latestBidAt: string;
@@ -17,6 +18,7 @@ export type ActivityItem = {
   productName: string;
   hasIcon: boolean;
   amountCents: number;
+  fundingSource: "stripe" | "credit";
   happenedAt: string;
 };
 

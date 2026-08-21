@@ -44,6 +44,7 @@ export async function getLeaderboardData(): Promise<LeaderboardPayload> {
       .select({
         productId: bids.productId,
         bidCents: sql<number>`sum(${bids.amountCents} - ${bids.refundedCents})`.mapWith(Number).as("bid_cents"),
+        creditCents: sql<number>`sum(case when ${bids.fundingSource} = 'credit' then ${bids.amountCents} - ${bids.refundedCents} else 0 end)`.mapWith(Number).as("credit_cents"),
         latestBidAt: max(bids.paidAt).as("latest_bid_at"),
       })
       .from(bids)
@@ -72,6 +73,7 @@ export async function getLeaderboardData(): Promise<LeaderboardPayload> {
         hasIcon: sql<number>`case when ${products.iconDataUrl} is null then 0 else 1 end`.mapWith(Number),
         createdAt: products.createdAt,
         bidCents: paidBidTotals.bidCents,
+        creditCents: paidBidTotals.creditCents,
         latestBidAt: paidBidTotals.latestBidAt,
         weeklyClicks: sql<number>`coalesce(${clickTotals.weeklyClicks}, 0)`.mapWith(Number),
         totalClicks: sql<number>`coalesce(${clickTotals.totalClicks}, 0)`.mapWith(Number),
@@ -90,6 +92,7 @@ export async function getLeaderboardData(): Promise<LeaderboardPayload> {
         productName: products.displayName,
         hasIcon: sql<number>`case when ${products.iconDataUrl} is null then 0 else 1 end`.mapWith(Number),
         amountCents: sql<number>`${bids.amountCents} - ${bids.refundedCents}`.mapWith(Number),
+        fundingSource: bids.fundingSource,
         happenedAt: bids.paidAt,
       })
       .from(bids)
@@ -133,6 +136,7 @@ export async function getLeaderboardData(): Promise<LeaderboardPayload> {
       category: row.category,
       hasIcon: Boolean(row.hasIcon),
       bidCents: row.bidCents,
+      creditCents: row.creditCents,
       weeklyClicks: row.weeklyClicks,
       totalClicks: row.totalClicks,
       latestBidAt: (row.latestBidAt ?? row.createdAt).toISOString(),
@@ -154,6 +158,7 @@ export async function getLeaderboardData(): Promise<LeaderboardPayload> {
         productName: row.productName,
         hasIcon: Boolean(row.hasIcon),
         amountCents: row.amountCents,
+        fundingSource: row.fundingSource,
         happenedAt: row.happenedAt.toISOString(),
       }] : []),
       categories: categoryRows.map((row) => ({ name: row.name, count: row.count })),

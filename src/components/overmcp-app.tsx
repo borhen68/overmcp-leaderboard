@@ -514,7 +514,7 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
           </article>
 
           <article className="pulse-card">
-            <div className="pulse-heading"><strong><span className="live-dot" /> Latest activity</strong><small>confirmed paid bids</small></div>
+            <div className="pulse-heading"><strong><span className="live-dot" /> Latest activity</strong><small>confirmed bids &amp; credits</small></div>
             {data.activity.length ? (
               <div className="pulse-list">
                 {data.activity.slice(0, 5).map((item) => {
@@ -523,12 +523,12 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
                     <div className="pulse-row" key={item.id}>
                       <ProductMark id={item.productId} name={item.productName} hasIcon={item.hasIcon} className="pulse-avatar" style={{ "--pulse-accent": palette[0], "--pulse-soft": palette[1] } as React.CSSProperties} />
                       <strong>{item.productName}</strong>
-                      <span>+{formatDollars(item.amountCents)} · {relativeTime(item.happenedAt, data.generatedAt)}</span>
+                      <span>{item.fundingSource === "credit" ? `${formatDollars(item.amountCents)} founder credit` : `+${formatDollars(item.amountCents)}`} · {relativeTime(item.happenedAt, data.generatedAt)}</span>
                     </div>
                   );
                 })}
               </div>
-            ) : <div className="pulse-empty"><span>●</span><p><strong>No bid activity yet</strong>Confirmed payments will appear here.</p></div>}
+            ) : <div className="pulse-empty"><span>●</span><p><strong>No bid activity yet</strong>Confirmed bids and credits will appear here.</p></div>}
           </article>
         </section>
 
@@ -570,7 +570,7 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
                       <div className="product-copy">
                         <div className="product-name-line"><h3>{product.name}</h3>{isNew && <span className="new-tag">NEW BID</span>}</div>
                         <p>{product.description}</p>
-                        <div className="tag-row"><span>{product.category}</span></div>
+                        <div className="tag-row"><span>{product.category}</span>{product.creditCents > 0 && <span>FOUNDER CREDIT</span>}</div>
                       </div>
                     </div>
                     <div className="signal-grid">
@@ -614,7 +614,7 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
         </section>
 
         <section className="metrics container" aria-label="OverMCP metrics">
-          <article><span>Live products</span><strong>{formatInteger(data.stats.products)}</strong><small><Icon name="trend" size={13} /> Paid listings only</small></article>
+          <article><span>Live products</span><strong>{formatInteger(data.stats.products)}</strong><small><Icon name="trend" size={13} /> Confirmed placements</small></article>
           <article><span>Clicks delivered</span><strong>{formatCompact(data.stats.totalClicks)}</strong><small><Icon name="trend" size={13} /> Tracked outbound visits</small></article>
           <article><span>Visitors online</span><strong>{formatInteger(data.stats.onlineVisitors)}</strong><small><Icon name="users" size={13} /> Active in 2 minutes</small></article>
           <article><span>Entry placement</span><strong>{formatDollars(data.stats.minimumBidCents)}</strong><small><Icon name="bolt" size={13} /> No subscription</small></article>
@@ -626,7 +626,7 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
             <div className="how-grid">
               <article><span className="step-number">01</span><div className="step-visual visual-list"><i /><i /><i /></div><h3>List your product</h3><p>Submit any product URL or @handle with the name and description you want visitors to see.</p></article>
               <article><span className="step-number">02</span><div className="step-visual visual-bid"><span>$</span><strong>5</strong><i>+</i></div><h3>Choose your reach</h3><p>Bid for the position you want. Start at $5 and see the current threshold before paying.</p></article>
-              <article><span className="step-number">03</span><div className="step-visual visual-chart"><i /><i /><i /><i /><i /></div><h3>Measure real intent</h3><p>See tracked outbound clicks and the exact position your total paid bid earns.</p></article>
+              <article><span className="step-number">03</span><div className="step-visual visual-chart"><i /><i /><i /><i /><i /></div><h3>Measure real intent</h3><p>See tracked outbound clicks and the exact position your confirmed bid total earns.</p></article>
             </div>
           </div>
         </section>
@@ -657,7 +657,7 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
             <button className="modal-close" onClick={() => setModalOpen(false)} aria-label="Close dialog"><Icon name="close" size={19} /></button>
             <div className="modal-kicker"><span>#{targetRank}</span> Placement checkout</div>
             <h2 id="modal-title">Put your product where<br />people look first.</h2>
-            <p className="modal-description">Your position is based on your product’s total paid bids. For an existing listing, checkout charges only the difference needed to reach this total.</p>
+            <p className="modal-description">Your position is based on your product’s confirmed bid total, including any promotional credit. For an existing listing, checkout charges only the difference needed to reach this total.</p>
             <div className="modal-summary"><div><span>Target position</span><strong>#{targetRank}</strong></div><div><span>Target total bid</span><strong>${formatInteger(bidAmount)}</strong></div><div><span>Current threshold</span><strong>${formatInteger(thresholdDollars)}</strong></div></div>
             <form onSubmit={submitPlacement} noValidate>
               <label><span>Product URL or @handle</span><input ref={identityInput} value={identity} onChange={(event) => changeIdentity(event.target.value)} onBlur={() => void autofillWebsite(identity)} placeholder="https://yourproduct.com" required /></label>

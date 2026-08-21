@@ -3,6 +3,7 @@ import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-o
 
 const productStatuses = ["pending", "active", "hidden"] as const;
 const bidStatuses = ["pending", "paid", "expired", "failed", "refunded", "disputed"] as const;
+const fundingSources = ["stripe", "credit"] as const;
 const nowInMilliseconds = sql`(unixepoch() * 1000)`;
 
 export const products = sqliteTable(
@@ -34,6 +35,7 @@ export const bids = sqliteTable(
     amountCents: integer("amount_cents").notNull(),
     refundedCents: integer("refunded_cents").default(0).notNull(),
     status: text("status", { enum: bidStatuses }).default("pending").notNull(),
+    fundingSource: text("funding_source", { enum: fundingSources }).default("stripe").notNull(),
     checkoutRequestId: text("checkout_request_id"),
     targetTotalCents: integer("target_total_cents"),
     checkoutSessionId: text("checkout_session_id"),

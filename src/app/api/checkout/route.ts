@@ -69,7 +69,6 @@ type CheckoutBid = {
   id: string;
   productId: string;
   productIdentityKey: string;
-  productName: string;
   amountCents: number;
   targetTotalCents: number | null;
   customerEmail: string | null;
@@ -84,7 +83,6 @@ async function checkoutBidForRequest(requestId: string): Promise<CheckoutBid | u
       id: bids.id,
       productId: bids.productId,
       productIdentityKey: products.identityKey,
-      productName: products.displayName,
       amountCents: bids.amountCents,
       targetTotalCents: bids.targetTotalCents,
       customerEmail: bids.customerEmail,
@@ -104,7 +102,6 @@ async function pendingCheckoutBidForProduct(productId: string): Promise<Checkout
       id: bids.id,
       productId: bids.productId,
       productIdentityKey: products.identityKey,
-      productName: products.displayName,
       amountCents: bids.amountCents,
       targetTotalCents: bids.targetTotalCents,
       customerEmail: bids.customerEmail,
@@ -142,8 +139,8 @@ async function createCheckoutSession(
         currency: "usd",
         unit_amount: bid.amountCents,
         product_data: {
-          name: `OverMCP bid for ${bid.productName}`,
-          description: `Raises the product's total bid to $${(bid.targetTotalCents / 100).toLocaleString("en-US")}`,
+          name: "OverMCP leaderboard bid",
+          description: `Placement on overmcp.com · raises your listing's total bid to $${(bid.targetTotalCents / 100).toLocaleString("en-US")}`,
         },
       },
     }],
