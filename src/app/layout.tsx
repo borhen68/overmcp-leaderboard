@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import "./globals.css";
 
 const siteUrl = "https://www.overmcp.com";
@@ -61,6 +62,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" suppressHydrationWarning>
       <body>{children}</body>
+      <Script
+        src="https://datafa.st/js/script.js"
+        data-website-id="dfid_rfF5hDxCOWKuJEoPI2nv4"
+        data-domain="overmcp.com"
+        strategy="afterInteractive"
+      />
     </html>
   );
 }

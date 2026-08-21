@@ -5,8 +5,8 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   async headers() {
     const scriptPolicy = process.env.NODE_ENV === "development"
-      ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
-      : "script-src 'self' 'unsafe-inline'";
+      ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://datafa.st"
+      : "script-src 'self' 'unsafe-inline' https://datafa.st";
 
     return [{
       source: "/(.*)",
@@ -19,7 +19,7 @@ const nextConfig: NextConfig = {
             "style-src 'self' 'unsafe-inline'",
             "img-src 'self' data: blob:",
             "font-src 'self' data:",
-            "connect-src 'self'",
+            "connect-src 'self' https://datafa.st",
             "object-src 'none'",
             "base-uri 'self'",
             "form-action 'self'",
