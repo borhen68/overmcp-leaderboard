@@ -1229,9 +1229,36 @@
     .market-pulse { padding-bottom: 26px; }
     .pulse-heading { align-items: flex-start; flex-direction: column; gap: 1px; padding-block: 10px; }
     .pulse-row { padding-inline: 10px; }
-    .metrics { gap: 30px 0; }
-    .metrics article { padding: 0 16px; }
-    .metrics article > strong { font-size: 31px; }
+    .metrics {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      padding-top: 28px;
+      padding-bottom: 58px;
+    }
+    .metrics article:nth-child(n) {
+      min-height: 126px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 17px 9px;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: var(--surface-raised);
+      box-shadow: 0 10px 28px rgba(35, 40, 24, .045);
+      text-align: center;
+    }
+    .metrics article > span { font-size: 9px; letter-spacing: .085em; }
+    .metrics article > strong { margin-block: 9px 6px; font-size: 34px; }
+    .metrics article > small {
+      min-height: 18px;
+      justify-content: center;
+      gap: 4px;
+      font-size: 8.5px;
+      line-height: 1.25;
+      text-align: center;
+    }
+    .metrics article > small svg { width: 12px; height: 12px; flex: 0 0 auto; }
     .section-heading h2 { font-size: 43px; }
     .leaderboard-section { padding-bottom: 85px; }
     .product-identity { grid-template-columns: 30px 44px 1fr; gap: 8px; }
