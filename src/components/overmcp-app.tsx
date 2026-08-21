@@ -33,6 +33,14 @@ const palettes = [
 
 const DATAFAST_SHARE_URL = "https://datafa.st/share/6a8891cc9f3926b34adc34d6?realtime=1";
 
+type DataFastWindow = Window & {
+  datafast?: (goalName: string, parameters?: Record<string, string>) => void;
+};
+
+function trackDataFastGoal(goalName: string, parameters: Record<string, string>) {
+  (window as DataFastWindow).datafast?.(goalName, parameters);
+}
+
 function Icon({ name, size = 18, strokeWidth = 1.8 }: { name: string; size?: number; strokeWidth?: number }) {
   const paths: Record<string, React.ReactNode> = {
     arrow: <><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></>,
@@ -187,6 +195,7 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
   const autofillRequest = useRef(0);
   const lastAutofilledIdentity = useRef("");
   const checkoutRequestId = useRef<string | null>(null);
+  const trackedCheckoutRequestId = useRef<string | null>(null);
   const submittingRef = useRef(false);
 
   const products = data.products;
@@ -425,6 +434,19 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
         checkoutRequestId.current = null;
       }
       if (!response.ok || !result.checkoutUrl) throw new Error(result.error ?? "Checkout could not be started.");
+      if (trackedCheckoutRequestId.current !== requestId) {
+        trackedCheckoutRequestId.current = requestId;
+        trackDataFastGoal("initiate_checkout", {
+          email,
+          product_name: productName,
+          product_website: identity.trim().slice(0, 255),
+          category: productCategory,
+          amount_usd: String(bidAmount),
+          target_rank: String(targetRank),
+          request_id: requestId,
+        });
+        await new Promise((resolve) => window.setTimeout(resolve, 150));
+      }
       window.location.assign(result.checkoutUrl);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Checkout could not be started.");
