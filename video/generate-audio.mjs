@@ -17,75 +17,108 @@ const add = (time, length, render) => {
   }
 };
 
-const seededNoise = (index, seed = 1) => {
-  const value = Math.sin((index + seed * 991) * 12.9898) * 43_758.5453;
+const noise = (index, seed = 1) => {
+  const value = Math.sin((index + seed * 997) * 12.9898) * 43_758.5453;
   return (value - Math.floor(value)) * 2 - 1;
 };
 
-for (const frequency of [55, 82.41, 110, 164.81]) {
-  add(0, duration, (t) => {
-    const fadeIn = Math.min(1, t / 1.4);
-    const fadeOut = Math.min(1, (duration - t) / 1.2);
-    const pulse = 0.64 + Math.sin(t * Math.PI * 4) * 0.11;
-    const value = Math.sin(Math.PI * 2 * frequency * t + Math.sin(t * 0.6) * 0.3)
-      * 0.026 * fadeIn * fadeOut * pulse;
-    return [value * 0.94, value];
-  });
-}
+const beat = 0.4;
+const sceneCuts = [0, 1.67, 4.33, 6.4, 7.8, 9.2];
 
-const beats = Array.from({ length: 22 }, (_, index) => 0.18 + index * 0.5);
-for (const [beatIndex, time] of beats.entries()) {
-  add(time, 0.34, (t) => {
-    const envelope = Math.exp(-t * 15);
-    const phase = Math.PI * 2 * (72 * t - 39 * t * t);
-    const click = seededNoise(Math.floor(t * sampleRate), beatIndex + 4) * Math.exp(-t * 65) * 0.08;
-    const value = Math.sin(phase) * envelope * 0.42 + click;
-    return [value, value];
-  });
-
-  if (beatIndex % 2 === 1) {
-    add(time, 0.11, (t, index) => {
-      const noise = seededNoise(index, beatIndex + 40) * Math.exp(-t * 34) * 0.11;
-      return [noise * 0.75, noise];
+// Bright, side-chained synth bed at 150 BPM.
+const chordRoots = [55, 65.41, 73.42, 82.41];
+for (let bar = 0; bar < 7; bar += 1) {
+  const start = bar * beat * 4;
+  const root = chordRoots[bar % chordRoots.length];
+  for (const multiplier of [1, 1.5, 2, 3]) {
+    add(start, beat * 4, (t) => {
+      const phaseInBeat = (t % beat) / beat;
+      const duck = 0.28 + Math.min(1, phaseInBeat * 3.6) * 0.72;
+      const fade = Math.min(1, t / 0.12) * Math.min(1, (beat * 4 - t) / 0.18);
+      const shimmer = Math.sin(Math.PI * 2 * root * multiplier * t + Math.sin(t * 3.2) * 0.4);
+      return [shimmer * 0.018 * fade * duck, shimmer * 0.02 * fade * duck];
     });
   }
 }
 
-const bassNotes = [55, 65.41, 73.42, 49];
-for (let index = 0; index < 11; index += 1) {
-  const frequency = bassNotes[index % bassNotes.length];
-  add(index + 0.18, 0.72, (t) => {
-    const attack = Math.min(1, t / 0.025);
-    const envelope = attack * Math.exp(-t * 3.2);
-    const value = (Math.sin(Math.PI * 2 * frequency * t) + 0.22 * Math.sin(Math.PI * 4 * frequency * t)) * envelope * 0.075;
-    return [value, value * 0.92];
+// Punchy kick on every beat, with a heavier first beat per bar.
+for (let index = 0; index < 28; index += 1) {
+  const time = 0.04 + index * beat;
+  add(time, 0.28, (t, sample) => {
+    const envelope = Math.exp(-t * 17);
+    const frequency = 112 * Math.exp(-t * 13) + 43;
+    const body = Math.sin(Math.PI * 2 * frequency * t) * envelope;
+    const transient = noise(sample, index + 11) * Math.exp(-t * 80) * 0.17;
+    const weight = index % 4 === 0 ? 0.68 : 0.5;
+    return [(body + transient) * weight, (body + transient) * weight];
   });
 }
 
-for (const [accentIndex, time] of [0.05, 2.05, 5.05, 7.55, 9.05, 10.42].entries()) {
-  add(time, 0.7, (t, index) => {
-    const envelope = Math.sin(Math.min(1, t / 0.08) * Math.PI / 2) * Math.exp(-t * 5.2);
-    const tone = Math.sin(Math.PI * 2 * (330 + t * 520) * t) * 0.09;
-    const air = seededNoise(index, accentIndex + 100) * 0.035;
-    const pan = accentIndex % 2 === 0 ? 0.72 : 1;
-    return [(tone + air) * envelope * pan, (tone + air) * envelope * (1.72 - pan)];
+// Claps and fast hats keep every cut moving.
+for (let index = 0; index < 14; index += 1) {
+  add(0.44 + index * beat * 2, 0.18, (t, sample) => {
+    const value = noise(sample, index + 80) * Math.exp(-t * 28) * 0.22;
+    return [value * 0.78, value];
   });
 }
 
-for (const start of [1.55, 4.45, 7.0, 8.55]) {
-  add(start, 0.65, (t, index, count) => {
-    const progress = index / count;
-    const envelope = Math.sin(progress * Math.PI) * progress;
-    const noise = seededNoise(index, Math.floor(start * 100)) * 0.055 * envelope;
-    return [noise * (1 - progress * 0.35), noise * (0.65 + progress * 0.35)];
+for (let index = 0; index < 55; index += 1) {
+  add(0.22 + index * beat / 2, 0.055, (t, sample) => {
+    const value = noise(sample, index + 150) * Math.exp(-t * 62) * (index % 2 ? 0.075 : 0.11);
+    return index % 2 ? [value * 0.58, value] : [value, value * 0.58];
   });
 }
+
+// Short bass notes make the rank takeover feel physical.
+for (let index = 0; index < 27; index += 1) {
+  const root = chordRoots[Math.floor(index / 4) % chordRoots.length];
+  add(0.06 + index * beat, 0.32, (t) => {
+    const envelope = Math.min(1, t / 0.018) * Math.exp(-t * 7.5);
+    const wave = Math.sin(Math.PI * 2 * root * t) + 0.28 * Math.sin(Math.PI * 4 * root * t);
+    return [wave * envelope * 0.12, wave * envelope * 0.11];
+  });
+}
+
+// Transition risers and impacts are aligned to every scene cut.
+for (const [index, cut] of sceneCuts.entries()) {
+  if (cut > 0) {
+    add(cut - 0.32, 0.32, (t, sample, count) => {
+      const progress = sample / count;
+      const envelope = Math.sin(progress * Math.PI / 2) * progress;
+      const sweep = noise(sample, index + 250) * (0.03 + progress * 0.14);
+      const tone = Math.sin(Math.PI * 2 * (240 + progress * 920) * t) * 0.055;
+      return [(sweep + tone) * envelope * 0.75, (sweep + tone) * envelope];
+    });
+  }
+  add(cut, 0.46, (t, sample) => {
+    const envelope = Math.exp(-t * 9.2);
+    const boom = Math.sin(Math.PI * 2 * (72 - t * 38) * t) * 0.48;
+    const snap = noise(sample, index + 330) * Math.exp(-t * 42) * 0.16;
+    return [(boom + snap) * envelope, (boom + snap) * envelope];
+  });
+}
+
+// UI ticks for the $5 → $10 change and final CTA.
+for (const [index, time] of [2.46, 2.58, 2.7, 2.82, 2.94, 9.76, 10.16].entries()) {
+  add(time, 0.14, (t) => {
+    const envelope = Math.exp(-t * 31);
+    const value = Math.sin(Math.PI * 2 * (720 + index * 55) * t) * envelope * 0.16;
+    return index % 2 ? [value * 0.62, value] : [value, value * 0.62];
+  });
+}
+
+// A final rising tone leaves the URL feeling resolved rather than abruptly cut.
+add(9.25, 1.55, (t) => {
+  const fade = Math.min(1, t / 0.18) * Math.min(1, (1.55 - t) / 0.32);
+  const value = (Math.sin(Math.PI * 2 * 220 * t) + 0.45 * Math.sin(Math.PI * 2 * 330 * t)) * 0.035 * fade;
+  return [value * 0.85, value];
+});
 
 let peak = 0;
 for (let index = 0; index < samples; index += 1) {
   peak = Math.max(peak, Math.abs(left[index]), Math.abs(right[index]));
 }
-const gain = peak > 0 ? 0.86 / peak : 1;
+const gain = peak > 0 ? 0.91 / peak : 1;
 
 const bytesPerSample = 2;
 const channels = 2;
@@ -113,4 +146,4 @@ for (let index = 0; index < samples; index += 1) {
 
 await mkdir(new URL("../public/video/", import.meta.url), { recursive: true });
 await writeFile(new URL("../public/video/overmcp-bed.wav", import.meta.url), wav);
-console.log("Generated 11-second OverMCP audio bed.");
+console.log("Generated energetic 11-second OverMCP audio bed at 150 BPM.");
