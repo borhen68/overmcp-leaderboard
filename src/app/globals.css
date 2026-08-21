@@ -1261,12 +1261,29 @@
     .metrics article > small svg { width: 12px; height: 12px; flex: 0 0 auto; }
     .section-heading h2 { font-size: 43px; }
     .leaderboard-section { padding-bottom: 85px; }
-    .product-identity { grid-template-columns: 30px 44px 1fr; gap: 8px; }
-    .product-logo { width: 44px; height: 44px; }
-    .product-copy > p { font-size: 10px; }
-    .signal-grid { grid-template-columns: repeat(3, auto); gap: 10px; }
-    .signal-grid strong { font-size: 11px; }
-    .signal-grid span { font-size: 7px; }
+    .product-row, .product-row.is-featured { gap: 20px 12px; padding: 27px 17px; }
+    .product-row.is-featured { padding-top: 46px; }
+    .featured-ribbon { top: 13px; font-size: 10px; letter-spacing: .1em; }
+    .product-identity { grid-template-columns: 34px 52px minmax(0, 1fr); gap: 10px; }
+    .rank-number { font-size: 25px; }
+    .rank-number small { font-size: 12px; }
+    .product-logo { width: 52px; height: 52px; border-radius: 14px; }
+    .product-name-line { align-items: flex-start; gap: 7px; }
+    .product-name-line h3 { font-size: 18px; line-height: 1.18; }
+    .new-tag { flex: 0 0 auto; padding: 4px 6px; font-size: 8px; }
+    .product-copy > p { margin: 7px 0 9px; font-size: 13px; line-height: 1.45; -webkit-line-clamp: 3; }
+    .tag-row { gap: 6px; }
+    .tag-row span { padding: 3px 6px; font-size: 9px; }
+    .signal-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .signal-grid strong { font-size: 15px; }
+    .signal-grid span { font-size: 9px; line-height: 1.25; }
+    .placement-cell > span { font-size: 9px; }
+    .placement-cell > strong { margin-top: 4px; font-size: 22px; }
+    .placement-cell > small { font-size: 10px; }
+    .save-button { width: 44px; height: 44px; }
+    .copy-button { height: 44px; font-size: 13px; }
+    .trust-card p { font-size: 13px; }
+    .trust-card a { font-size: 12px; }
     .activity-column { grid-template-columns: 1fr; }
     .activity-card, .mini-card { grid-column: auto; grid-row: auto; }
     .how-section { padding: 80px 0; }
@@ -1294,6 +1311,13 @@
     .legal-header, .legal-page > article { width: calc(100% - 28px); }
     .legal-page > article { margin-top: 52px; }
     .legal-page h1 { font-size: 46px; }
+  }
+
+  @media (max-width: 340px) {
+    .product-identity { grid-template-columns: 30px 48px minmax(0, 1fr); gap: 8px; }
+    .product-logo { width: 48px; height: 48px; }
+    .product-name-line { display: block; }
+    .new-tag { display: table; margin-top: 5px; }
   }
 
   @media (prefers-reduced-motion: reduce) {
