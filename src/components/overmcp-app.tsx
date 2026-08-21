@@ -411,6 +411,20 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
     setFormError("");
     const requestId = checkoutRequestId.current ?? window.crypto.randomUUID();
     checkoutRequestId.current = requestId;
+    const isNewCheckoutAttempt = trackedCheckoutRequestId.current !== requestId;
+
+    if (isNewCheckoutAttempt) {
+      trackedCheckoutRequestId.current = requestId;
+      trackDataFastGoal("initiate_checkout", {
+        email,
+        product_name: productName,
+        product_website: identity.trim().slice(0, 255),
+        category: productCategory,
+        amount_usd: String(bidAmount),
+        target_rank: String(targetRank),
+        request_id: requestId,
+      });
+    }
 
     try {
       const response = await fetch("/api/checkout", {
@@ -434,19 +448,7 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
         checkoutRequestId.current = null;
       }
       if (!response.ok || !result.checkoutUrl) throw new Error(result.error ?? "Checkout could not be started.");
-      if (trackedCheckoutRequestId.current !== requestId) {
-        trackedCheckoutRequestId.current = requestId;
-        trackDataFastGoal("initiate_checkout", {
-          email,
-          product_name: productName,
-          product_website: identity.trim().slice(0, 255),
-          category: productCategory,
-          amount_usd: String(bidAmount),
-          target_rank: String(targetRank),
-          request_id: requestId,
-        });
-        await new Promise((resolve) => window.setTimeout(resolve, 150));
-      }
+      if (isNewCheckoutAttempt) await new Promise((resolve) => window.setTimeout(resolve, 200));
       window.location.assign(result.checkoutUrl);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Checkout could not be started.");
