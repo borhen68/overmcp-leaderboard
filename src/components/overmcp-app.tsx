@@ -31,6 +31,8 @@ const palettes = [
   ["#ffbc66", "#3d2910"],
 ] as const;
 
+const DATAFAST_SHARE_URL = "https://datafa.st/share/6a8891cc9f3926b34adc34d6?realtime=1";
+
 function Icon({ name, size = 18, strokeWidth = 1.8 }: { name: string; size?: number; strokeWidth?: number }) {
   const paths: Record<string, React.ReactNode> = {
     arrow: <><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></>,
@@ -177,6 +179,10 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
   const [opened, setOpened] = useState<string | null>(null);
   const [saved, setSaved] = useState<string[]>([]);
   const [toast, setToast] = useState("");
+  const [publicStats, setPublicStats] = useState({
+    onlineVisitors: initialData.stats.onlineVisitors,
+    totalVisitors: initialData.stats.totalVisitors,
+  });
   const identityInput = useRef<HTMLInputElement>(null);
   const autofillRequest = useRef(0);
   const lastAutofilledIdentity = useRef("");
@@ -244,6 +250,34 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
       window.clearInterval(presenceTimer);
     };
   }, [data.configured]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const refreshPublicStats = async () => {
+      try {
+        const response = await fetch("/api/datafast-stats", { cache: "no-store" });
+        if (!response.ok) return;
+        const nextStats = await response.json();
+        if (
+          !cancelled
+          && Number.isInteger(nextStats.onlineVisitors)
+          && Number.isInteger(nextStats.totalVisitors)
+        ) {
+          setPublicStats(nextStats);
+        }
+      } catch {
+        // Keep the production database counters as a reliable fallback.
+      }
+    };
+
+    void refreshPublicStats();
+    const timer = window.setInterval(refreshPublicStats, 15_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     if (!modalOpen) return;
@@ -439,7 +473,6 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
             <a href="#builders">For products</a>
           </nav>
           <div className="header-actions">
-            <span className="network-pill"><i /> {formatInteger(data.stats.onlineVisitors)} online</span>
             <button className="button button-small button-primary header-cta" onClick={openBidModal}>List your product <Icon name="arrow" size={15} /></button>
             <button className="icon-button menu-button" onClick={() => setMenuOpen((value) => !value)} aria-label="Toggle navigation" aria-expanded={menuOpen}>
               <Icon name={menuOpen ? "close" : "menu"} size={20} />
@@ -458,6 +491,13 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
 
       <main>
         <section className="hero container" aria-labelledby="hero-title">
+          <a className="public-stats-pill" href={DATAFAST_SHARE_URL} target="_blank" rel="noopener noreferrer" aria-label="See live OverMCP analytics on DataFast">
+            <span className="public-stats-online"><i /> {formatInteger(publicStats.onlineVisitors)} online</span>
+            <span className="public-stats-separator" aria-hidden="true">·</span>
+            <span>{formatInteger(publicStats.totalVisitors)} visitors since launch</span>
+            <span className="public-stats-separator" aria-hidden="true">·</span>
+            <strong>see stats <span aria-hidden="true">→</span></strong>
+          </a>
           <div className="hero-copy">
             <div className="eyebrow reveal reveal-one"><span>01</span> The live product leaderboard</div>
             <h1 id="hero-title" className="reveal reveal-two">Claim the internet’s <em>top spot.</em></h1>
@@ -471,7 +511,7 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
                 {products.slice(0, 3).map((product) => <span key={product.id}>{product.name.slice(0, 1).toUpperCase()}</span>)}
                 <span>+</span>
               </div>}
-              <p><strong>{formatInteger(data.stats.onlineVisitors)} {data.stats.onlineVisitors === 1 ? "person" : "people"}</strong><br />exploring right now</p>
+              <p><strong>{formatInteger(publicStats.onlineVisitors)} {publicStats.onlineVisitors === 1 ? "person" : "people"}</strong><br />exploring right now</p>
               <div className="proof-divider" />
               <p><strong>{formatCompact(weeklyClicks)} clicks</strong><br />delivered this week</p>
             </div>
@@ -640,7 +680,7 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
         <section className="metrics container" aria-label="OverMCP metrics">
           <article><span>Live products</span><strong>{formatInteger(data.stats.products)}</strong><small><Icon name="trend" size={13} /> Confirmed placements</small></article>
           <article><span>Clicks delivered</span><strong>{formatCompact(data.stats.totalClicks)}</strong><small><Icon name="trend" size={13} /> Tracked outbound visits</small></article>
-          <article><span>Visitors online</span><strong>{formatInteger(data.stats.onlineVisitors)}</strong><small><Icon name="users" size={13} /> Active in 2 minutes</small></article>
+          <article><span>Visitors online</span><strong>{formatInteger(publicStats.onlineVisitors)}</strong><small><Icon name="users" size={13} /> DataFast realtime</small></article>
           <article><span>Entry placement</span><strong>{formatDollars(data.stats.minimumBidCents)}</strong><small><Icon name="bolt" size={13} /> No subscription</small></article>
         </section>
 
