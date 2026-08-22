@@ -172,7 +172,7 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
   const [sortMode, setSortMode] = useState<SortMode>("Rank");
-  const [targetRank, setTargetRank] = useState<1 | 3 | 10>(1);
+  const [targetRank, setTargetRank] = useState<1 | 2 | 3 | 10>(1);
   const [bidAmount, setBidAmount] = useState(Math.ceil(initialData.positionPrices["1"] / 100));
   const [modalOpen, setModalOpen] = useState(false);
   const [identity, setIdentity] = useState("");
@@ -201,7 +201,7 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
   const submittingRef = useRef(false);
 
   const products = data.products;
-  const thresholdDollars = Math.ceil(data.positionPrices[String(targetRank) as "1" | "3" | "10"] / 100);
+  const thresholdDollars = Math.ceil(data.positionPrices[String(targetRank) as "1" | "2" | "3" | "10"] / 100);
   const weeklyClicks = products.reduce((total, product) => total + product.weeklyClicks, 0);
   const categoryOptions = useMemo(() => [{ name: "All", count: data.stats.products }, ...data.categories], [data]);
   const trendingProducts = useMemo(
@@ -325,10 +325,22 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
     });
   }, [category, products, query, sortMode]);
 
-  function chooseRank(rank: 1 | 3 | 10) {
+  function chooseRank(rank: 1 | 2 | 3 | 10) {
     checkoutRequestId.current = null;
     setTargetRank(rank);
-    setBidAmount(Math.ceil(data.positionPrices[String(rank) as "1" | "3" | "10"] / 100));
+    setBidAmount(Math.ceil(data.positionPrices[String(rank) as "1" | "2" | "3" | "10"] / 100));
+  }
+
+  function changeBidAmount(nextAmount: number) {
+    const normalizedAmount = Math.max(Math.ceil(data.stats.minimumBidCents / 100), nextAmount);
+    const amountCents = normalizedAmount * 100;
+    checkoutRequestId.current = null;
+    setBidAmount(normalizedAmount);
+
+    if (amountCents >= data.positionPrices["1"]) setTargetRank(1);
+    else if (amountCents >= data.positionPrices["2"]) setTargetRank(2);
+    else if (amountCents >= data.positionPrices["3"]) setTargetRank(3);
+    else setTargetRank(10);
   }
 
   function openBidModal() {
@@ -518,9 +530,9 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
           <div className="auction-hero-copy">
             <div className="hero-kicker reveal reveal-one"><span className="live-dot" /> The live product leaderboard</div>
             <h1 id="hero-title" className="auction-title reveal reveal-two">
-              <span>Claim #{targetRank} for</span>
+              <span>{targetRank === 1 ? "Claim #1 for" : `Claim a top ${targetRank} spot for`}</span>
               <span className="hero-price-control">
-                <button type="button" aria-label="Decrease bid by five dollars" onClick={() => { checkoutRequestId.current = null; setBidAmount((amount) => Math.max(5, amount - 5)); }}>−</button>
+                <button type="button" aria-label="Decrease bid by five dollars" onClick={() => changeBidAmount(bidAmount - 5)}>−</button>
                 <label className="hero-amount">
                   <span>$</span>
                   <input
@@ -528,10 +540,10 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
                     inputMode="numeric"
                     style={{ width: `${Math.max(2, String(bidAmount).length)}ch` }}
                     value={bidAmount}
-                    onChange={(event) => { checkoutRequestId.current = null; setBidAmount(Math.max(5, Number(event.target.value.replace(/\D/g, "")) || 5)); }}
+                    onChange={(event) => changeBidAmount(Number(event.target.value.replace(/\D/g, "")) || Math.ceil(data.stats.minimumBidCents / 100))}
                   />
                 </label>
-                <button type="button" aria-label="Increase bid by five dollars" onClick={() => { checkoutRequestId.current = null; setBidAmount((amount) => amount + 5); }}>+</button>
+                <button type="button" aria-label="Increase bid by five dollars" onClick={() => changeBidAmount(bidAmount + 5)}>+</button>
               </span>
             </h1>
             <p className="auction-description reveal reveal-three"><strong>New spots start at {formatDollars(data.stats.minimumBidCents)}.</strong> Pay once, stay listed until you’re outbid, and see every click you earn.</p>
@@ -539,14 +551,14 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
             <div className="hero-position-row reveal reveal-three">
               <span>Target position</span>
               <div className="position-tabs" role="group" aria-label="Target leaderboard position">
-                {([1, 3, 10] as const).map((rank) => <button type="button" className={targetRank === rank ? "active" : ""} key={rank} onClick={() => chooseRank(rank)}>#{rank}</button>)}
+                {([1, 2, 3, 10] as const).map((rank) => <button type="button" className={targetRank === rank ? "active" : ""} key={rank} onClick={() => chooseRank(rank)}>{rank === 1 ? "#1" : `Top ${rank}`}</button>)}
               </div>
-              <strong className={bidAmount >= thresholdDollars ? "is-ready" : ""}>{bidAmount >= thresholdDollars ? `Ready for #${targetRank}` : `$${formatInteger(thresholdDollars - bidAmount)} more needed`}</strong>
+              <strong className={bidAmount >= thresholdDollars ? "is-ready" : ""}>{bidAmount >= thresholdDollars ? (targetRank === 1 ? "Ready for #1" : `Ready for top ${targetRank}`) : `$${formatInteger(thresholdDollars - bidAmount)} more needed`}</strong>
             </div>
 
             <form className="hero-bid-form reveal reveal-four" onSubmit={(event) => { event.preventDefault(); openBidModal(); }}>
               <label className="hero-url-field"><Icon name="globe" size={20} /><input value={identity} onChange={(event) => changeIdentity(event.target.value)} onBlur={() => void autofillWebsite(identity)} placeholder="Your product URL or @handle" aria-label="Product URL or handle" /></label>
-              <button type="submit" className="button button-primary hero-submit">Claim this spot <Icon name="arrow" size={18} /></button>
+              <button type="submit" className="button button-primary hero-submit" disabled={bidAmount < thresholdDollars}>{bidAmount >= thresholdDollars ? "Claim this spot" : `Add $${formatInteger(thresholdDollars - bidAmount)}`} <Icon name="arrow" size={18} /></button>
             </form>
             <p className="hero-helper reveal reveal-four">Already on the board? Enter the same URL to increase your bid.</p>
 
@@ -731,10 +743,10 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
         <div className="modal-backdrop" onMouseDown={closeModal}>
           <section className="bid-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
             <button className="modal-close" onClick={() => setModalOpen(false)} aria-label="Close dialog"><Icon name="close" size={19} /></button>
-            <div className="modal-kicker"><span>#{targetRank}</span> Placement checkout</div>
+            <div className="modal-kicker"><span>{targetRank === 1 ? "#1" : `TOP ${targetRank}`}</span> Placement checkout</div>
             <h2 id="modal-title">Put your product where<br />people look first.</h2>
             <p className="modal-description">Your position is based on your product’s confirmed bid total, including any promotional credit. For an existing listing, checkout charges only the difference needed to reach this total.</p>
-            <div className="modal-summary"><div><span>Target position</span><strong>#{targetRank}</strong></div><div><span>Target total bid</span><strong>${formatInteger(bidAmount)}</strong></div><div><span>Current threshold</span><strong>${formatInteger(thresholdDollars)}</strong></div></div>
+            <div className="modal-summary"><div><span>Target position</span><strong>{targetRank === 1 ? "#1" : `Top ${targetRank}`}</strong></div><div><span>Target total bid</span><strong>${formatInteger(bidAmount)}</strong></div><div><span>Current threshold</span><strong>${formatInteger(thresholdDollars)}</strong></div></div>
             <form onSubmit={submitPlacement} noValidate>
               <label><span>Product URL or @handle</span><input ref={identityInput} value={identity} onChange={(event) => changeIdentity(event.target.value)} onBlur={() => void autofillWebsite(identity)} placeholder="https://yourproduct.com" required /></label>
               <div className={`autofill-feedback ${autofillStatus}`} aria-live="polite">

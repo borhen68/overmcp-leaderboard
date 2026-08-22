@@ -7,6 +7,7 @@ import type { LeaderboardPayload } from "@/lib/types";
 
 const emptyPositionPrices = {
   "1": MINIMUM_BID_CENTS,
+  "2": MINIMUM_BID_CENTS,
   "3": MINIMUM_BID_CENTS,
   "10": MINIMUM_BID_CENTS,
 } as const;
@@ -192,6 +193,7 @@ export async function getLeaderboardData(): Promise<LeaderboardPayload> {
       },
       positionPrices: {
         "1": priceForPosition(1),
+        "2": priceForPosition(2),
         "3": priceForPosition(3),
         "10": priceForPosition(10),
       },

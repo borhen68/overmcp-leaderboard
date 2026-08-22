@@ -1278,6 +1278,8 @@
     pointer-events: none;
   }
   .hero-submit:hover { animation-play-state: paused; }
+  .hero-submit:disabled { opacity: .58; cursor: not-allowed; animation: none; }
+  .hero-submit:disabled::after { animation: none; }
   @keyframes claim-pulse {
     0%, 62%, 100% { box-shadow: 0 8px 24px rgba(111,133,0,.13); }
     74% { box-shadow: 0 0 0 7px rgba(220,255,69,.2), 0 13px 30px rgba(111,133,0,.23); }

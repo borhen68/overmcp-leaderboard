@@ -15,7 +15,7 @@ import { readJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
 import { getStripe } from "@/lib/stripe";
 import { verifyIconPayload } from "@/lib/website-metadata";
 
-const targetRankSchema = z.union([z.literal(1), z.literal(3), z.literal(10)]);
+const targetRankSchema = z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(10)]);
 const checkoutSchema = z.object({
   requestId: z.uuid(),
   identity: z.string().trim().min(2).max(500),
@@ -45,7 +45,7 @@ function publicOrigin(request: Request) {
   return new URL(request.url).origin;
 }
 
-async function requiredTotalForRank(targetRank: 1 | 3 | 10) {
+async function requiredTotalForRank(targetRank: 1 | 2 | 3 | 10) {
   const db = getDatabase();
   const paidBidTotals = db
     .select({
@@ -128,7 +128,7 @@ async function pendingCheckoutBidForProduct(productId: string): Promise<Checkout
 async function createCheckoutSession(
   request: NextRequest,
   bid: CheckoutBid,
-  targetRank: 1 | 3 | 10,
+  targetRank: 1 | 2 | 3 | 10,
   requestId: string,
 ) {
   if (!bid.customerEmail || !bid.targetTotalCents) throw new Error("Checkout details are incomplete.");

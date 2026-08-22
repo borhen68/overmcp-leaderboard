@@ -45,6 +45,6 @@ export type LeaderboardPayload = {
     creditBidCents: number;
     launchedAt: string | null;
   };
-  positionPrices: Record<"1" | "3" | "10", number>;
+  positionPrices: Record<"1" | "2" | "3" | "10", number>;
   generatedAt: string;
 };
