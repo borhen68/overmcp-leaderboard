@@ -11,7 +11,8 @@
     "video:audio": "node video/generate-audio.mjs",
     "video:studio": "remotion studio video/index.tsx",
     "video:render": "npm run video:audio && remotion render video/index.tsx OverMCPXPromo renders/overmcp-x-promo.mp4 --codec=h264 --crf=17 --pixel-format=yuv420p --overwrite",
-    "render:viral": "node video/generate-viral-v2-audio.mjs && remotion render video/index.tsx OverMCPViralV2 renders/overmcp-viral-v2.mp4 --codec=h264 --crf=16 --pixel-format=yuv420p --overwrite"
+    "render:viral": "node video/generate-viral-v2-audio.mjs && remotion render video/index.tsx OverMCPViralV2 renders/overmcp-viral-v2.mp4 --codec=h264 --crf=16 --pixel-format=yuv420p --overwrite",
+    "render:market-story": "node video/generate-market-story-audio.mjs && remotion render video/index.tsx OverMCPMarketStory renders/overmcp-market-story.mp4 --codec=h264 --crf=16 --pixel-format=yuv420p --overwrite"
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",

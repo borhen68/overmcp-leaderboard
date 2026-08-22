@@ -382,17 +382,6 @@ function MarketChart({
         {!moves.length && <div className="market-chart-empty"><strong>The market opens with the first confirmed bid.</strong><span>No movement is simulated.</span></div>}
       </div>
 
-      <div className="market-movers">
-        <div className="market-movers-heading"><strong>Who moved the market</strong><small>Each logo marks the product behind a confirmed increase</small></div>
-        {visibleMoves.length ? <div className="market-movers-list">{[...visibleMoves].reverse().slice(0, 4).map((move) => (
-          <div className="market-mover" key={move.id}>
-            <ProductMark id={move.productId} name={move.productName} hasIcon={move.hasIcon} className="market-mover-logo" />
-            <span><strong>{move.productName}</strong><small>{move.fundingSource === "credit" ? "Founder credit" : "Stripe payment"} · {relativeTime(move.happenedAt, generatedAt)}</small></span>
-            <b>+{formatDollars(move.amountCents)}</b>
-          </div>
-        ))}</div> : <div className="market-movers-empty">No confirmed moves in this range.</div>}
-      </div>
-
       <footer className="market-chart-footnote"><strong>How to read it</strong><span>The line rises only when confirmed value is added.</span><span>Product logos identify who made each move.</span><small>Stripe payments + disclosed founder credits · no simulated data</small></footer>
     </article>
   );
@@ -450,6 +439,25 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
   const marketEntryRank = ([1, 2, 3, 10] as const)
     .find((rank) => data.positionPrices[String(rank) as "1" | "2" | "3" | "10"] <= data.stats.minimumBidCents) ?? 10;
   const marketEntryPriceCents = data.positionPrices[String(marketEntryRank) as "1" | "2" | "3" | "10"];
+  const latestMarketMoves = useMemo(
+    () => [...data.marketMoves]
+      .sort((a, b) => new Date(b.happenedAt).getTime() - new Date(a.happenedAt).getTime())
+      .slice(0, 3),
+    [data.marketMoves],
+  );
+  const topMovers = useMemo(() => {
+    const cutoff = new Date(data.generatedAt).getTime() - DAY_MS;
+    const changeByProduct = new Map<string, number>();
+    for (const move of data.marketMoves) {
+      if (new Date(move.happenedAt).getTime() < cutoff) continue;
+      changeByProduct.set(move.productId, (changeByProduct.get(move.productId) ?? 0) + move.amountCents);
+    }
+
+    return products
+      .map((product) => ({ product, changeCents: changeByProduct.get(product.id) ?? 0 }))
+      .sort((a, b) => b.changeCents - a.changeCents || a.product.rank - b.product.rank)
+      .slice(0, 3);
+  }, [data.generatedAt, data.marketMoves, products]);
 
   useEffect(() => {
     try {
@@ -854,19 +862,45 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
               )}
               {data.stats.products > products.length && <div className="load-more">Showing the top {products.length} of {formatInteger(data.stats.products)} products</div>}
             </div>
-            <aside className="market-tape" aria-label="Latest confirmed market activity">
-              <header><span><i /> Market tape</span><small>Latest moves</small></header>
-              {data.activity.length ? <div className="market-tape-list">{data.activity.slice(0, 5).map((item) => {
-                const palette = paletteFor(item.id);
-                return <div className="market-tape-row" key={item.id}>
-                  <ProductMark id={item.productId} name={item.productName} hasIcon={item.hasIcon} className="market-tape-logo" style={{ "--tape-accent": palette[0], "--tape-soft": palette[1] } as React.CSSProperties} />
-                  <span><strong>{item.productName}</strong><small>{relativeTime(item.happenedAt, data.generatedAt)}</small></span>
-                  <span><strong>+{formatDollars(item.amountCents)}</strong><small>{item.fundingSource === "credit" ? "founder credit" : "paid bid"}</small></span>
-                </div>;
-              })}</div> : <div className="market-tape-empty"><strong>No moves yet</strong><span>The first confirmed bid will appear here.</span></div>}
-              <footer><span>Market value</span><strong>{formatDollars(data.stats.confirmedBidCents)}</strong><small>{formatInteger(data.stats.totalClicks)} real clicks delivered</small></footer>
-            </aside>
           </div>
+
+          <section className="market-intelligence" aria-label="Live market intelligence">
+            <article className="market-intel-card market-intel-movers">
+              <header><div><h2>Who moved the market</h2><p>Every move is confirmed and attributable.</p></div><span className="market-intel-proof"><Icon name="shield" size={13} /> REAL DATA</span></header>
+              {latestMarketMoves.length ? <div className="market-intel-list">{latestMarketMoves.map((move) => (
+                <div className="market-intel-move" key={move.id}>
+                  <ProductMark id={move.productId} name={move.productName} hasIcon={move.hasIcon} className="market-intel-logo" />
+                  <span><strong>{move.productName}</strong><small>{move.fundingSource === "credit" ? "Founder credit" : "Stripe payment"} · <time dateTime={move.happenedAt}>{relativeTime(move.happenedAt, data.generatedAt)}</time></small></span>
+                  <b>+{formatDollars(move.amountCents)}</b>
+                </div>
+              ))}</div> : <div className="market-intel-empty"><strong>No confirmed moves yet</strong><span>The first completed bid will appear here.</span></div>}
+            </article>
+
+            <article className="market-intel-card market-intel-activity">
+              <header><div><h2>Market activity</h2><p>Latest confirmed events.</p></div><span className="market-intel-live"><i /> LIVE FEED</span></header>
+              {data.activity.length ? <div className="market-activity-list">{data.activity.slice(0, 3).map((item) => (
+                <div className="market-activity-row" key={item.id}>
+                  <ProductMark id={item.productId} name={item.productName} hasIcon={item.hasIcon} className="market-activity-logo" />
+                  <span><strong>{item.productName} moved the market</strong><small><time dateTime={item.happenedAt}>{relativeTime(item.happenedAt, data.generatedAt)}</time> · {item.fundingSource === "credit" ? "founder credit" : "paid bid"}</small></span>
+                  <b>+{formatDollars(item.amountCents)}</b>
+                </div>
+              ))}</div> : <div className="market-intel-empty"><strong>No activity yet</strong><span>Confirmed bids will stream here.</span></div>}
+            </article>
+
+            <article className="market-intel-card market-intel-top">
+              <header><div><h2>Top movers</h2><p>Current leaders and 24-hour movement.</p></div><span className="market-intel-period">24H</span></header>
+              {topMovers.length ? <div className="top-movers-list">{topMovers.map(({ product, changeCents }, index) => (
+                <div className="top-mover-row" key={product.id}>
+                  <span className="top-mover-rank">{index + 1}</span>
+                  <ProductMark id={product.id} name={product.name} hasIcon={product.hasIcon} className="top-mover-logo" />
+                  <strong>{product.name}</strong>
+                  <span className="top-mover-value">{formatDollars(product.bidCents)}</span>
+                  <b className={changeCents > 0 ? "is-up" : ""}>{changeCents > 0 ? `+${formatDollars(changeCents)}` : "—"}</b>
+                </div>
+              ))}</div> : <div className="market-intel-empty"><strong>No movers yet</strong><span>The first listed product will appear here.</span></div>}
+              <button className="market-intel-cta" onClick={openMarketClaim}>Claim a spot <Icon name="arrow" size={14} /></button>
+            </article>
+          </section>
         </section>
 
         <section className="market-rules container" id="how-it-works" aria-labelledby="how-title">
