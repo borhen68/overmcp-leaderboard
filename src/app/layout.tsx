@@ -3,9 +3,10 @@ import Script from "next/script";
 import "./globals.css";
 
 const siteUrl = "https://www.overmcp.com";
-const siteTitle = "OverMCP — The live product leaderboard";
+const siteTitle = "OverMCP — The live product rank race";
 const siteDescription =
-  "Discover products, follow real clicks, and bid for the top spot on a transparent live leaderboard.";
+  "Bid from $3, move up the live product leaderboard, and measure the real clicks your position earns.";
+const socialImage = "/opengraph-image?v=rank-race-20260823";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -15,6 +16,9 @@ export const metadata: Metadata = {
   },
   description: siteDescription,
   applicationName: "OverMCP",
+  other: {
+    "ory-verify": "orynth-ffbc17b235254fb583587ffc7b83621d",
+  },
   alternates: { canonical: "/" },
   keywords: [
     "product leaderboard",
@@ -31,7 +35,7 @@ export const metadata: Metadata = {
     siteName: "OverMCP",
     locale: "en_US",
     images: [{
-      url: "/opengraph-image",
+      url: socialImage,
       width: 1200,
       height: 630,
       alt: "OverMCP live product leaderboard",
@@ -41,7 +45,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: siteTitle,
     description: siteDescription,
-    images: ["/opengraph-image"],
+    images: [socialImage],
   },
   icons: {
     icon: [
