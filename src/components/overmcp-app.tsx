@@ -789,7 +789,7 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
               </div>
               <div className="market-bid-stepper">
                 <button type="button" aria-label={`Decrease bid by ${formatDollars(BID_INCREMENT_CENTS)}`} onClick={() => changeBidAmount(bidAmount - bidStepDollars)}>−</button>
-                <label><span>$</span><input aria-label="Bid amount in dollars" inputMode="numeric" value={bidAmount} onChange={(event) => changeBidAmount(Number(event.target.value.replace(/\D/g, "")) || Math.ceil(data.stats.minimumBidCents / 100))} /></label>
+                <label><span>$</span><input aria-label="Bid amount in dollars" inputMode="numeric" style={{ width: `${Math.max(1, String(bidAmount).length)}ch` }} value={bidAmount} onChange={(event) => changeBidAmount(Number(event.target.value.replace(/\D/g, "")) || Math.ceil(data.stats.minimumBidCents / 100))} /></label>
                 <button type="button" aria-label={`Increase bid by ${formatDollars(BID_INCREMENT_CENTS)}`} onClick={() => changeBidAmount(bidAmount + bidStepDollars)}>+</button>
               </div>
             </div>
