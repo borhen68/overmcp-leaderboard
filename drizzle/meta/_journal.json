@@ -36,6 +36,13 @@
       "when": 1787330600000,
       "tag": "0004_bid_funding_source",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787386200000,
+      "tag": "0005_minimum_bid_300",
+      "breakpoints": true
     }
   ]
 }

@@ -35,7 +35,7 @@ export default function OpenGraphImage() {
             <div style={{ display: "flex", alignItems: "center", padding: "20px", borderRadius: 18, color: "#171914", background: "#dcff45" }}>
               <div style={{ fontSize: 42, fontWeight: 900 }}>#1</div>
               <div style={{ marginLeft: 18, display: "flex", flexDirection: "column" }}><span style={{ fontSize: 13, fontWeight: 700 }}>TOP SPOT</span><strong style={{ marginTop: 3, fontSize: 21 }}>Your product</strong></div>
-              <div style={{ marginLeft: "auto", fontSize: 18, fontWeight: 800 }}>$5+</div>
+              <div style={{ marginLeft: "auto", fontSize: 18, fontWeight: 800 }}>$3+</div>
             </div>
             {[2, 3].map((rank) => (
               <div key={rank} style={{ display: "flex", alignItems: "center", padding: "17px 19px", border: "1px solid #3f423b", borderRadius: 16, color: "#f7f6ef" }}>

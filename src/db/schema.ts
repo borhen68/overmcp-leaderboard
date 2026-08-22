@@ -50,7 +50,7 @@ export const bids = sqliteTable(
     uniqueIndex("bids_one_pending_per_product").on(table.productId).where(sql`${table.status} = 'pending'`),
     index("bids_product_status_idx").on(table.productId, table.status),
     index("bids_paid_at_idx").on(table.paidAt),
-    check("bids_amount_minimum", sql`${table.amountCents} >= 500`),
+    check("bids_amount_minimum", sql`${table.amountCents} >= 300`),
     check("bids_refund_valid", sql`${table.refundedCents} >= 0 AND ${table.refundedCents} <= ${table.amountCents}`),
   ],
 );

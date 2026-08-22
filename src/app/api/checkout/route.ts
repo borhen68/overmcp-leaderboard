@@ -334,10 +334,11 @@ export async function POST(request: NextRequest) {
   const existingPaidTotal = paidTotalRows[0]?.value ?? 0;
   const chargeCents = parsed.data.amountCents - existingPaidTotal;
   if (chargeCents < MINIMUM_BID_CENTS) {
+    const minimumBid = `$${(MINIMUM_BID_CENTS / 100).toLocaleString("en-US")}`;
     return NextResponse.json({
       error: existingPaidTotal
-        ? `This product already has a $${(existingPaidTotal / 100).toLocaleString("en-US")} total bid. Increase it by at least $5.`
-        : "The minimum bid is $5.",
+        ? `This product already has a $${(existingPaidTotal / 100).toLocaleString("en-US")} total bid. Increase it by at least ${minimumBid}.`
+        : `The minimum bid is ${minimumBid}.`,
     }, { status: 400 });
   }
 

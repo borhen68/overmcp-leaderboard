@@ -98,7 +98,7 @@ for (const [index, cut] of sceneCuts.entries()) {
   });
 }
 
-// UI ticks for the $5 → $10 change and final CTA.
+// UI ticks for the $3 → $8 change and final CTA.
 for (const [index, time] of [2.46, 2.58, 2.7, 2.82, 2.94, 9.76, 10.16].entries()) {
   add(time, 0.14, (t) => {
     const envelope = Math.exp(-t * 31);

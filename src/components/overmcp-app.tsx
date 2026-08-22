@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { PRODUCT_CATEGORIES } from "@/lib/constants";
+import { BID_INCREMENT_CENTS, PRODUCT_CATEGORIES } from "@/lib/constants";
 import type { LeaderboardPayload, LeaderboardProduct } from "@/lib/types";
 
 type SortMode = "Rank" | "Clicks" | "Newest";
@@ -167,13 +167,15 @@ function getVisitorId() {
 }
 
 export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload }) {
+  const initialTargetRank = ([1, 2, 3, 10] as const)
+    .find((rank) => initialData.positionPrices[String(rank) as "1" | "2" | "3" | "10"] <= initialData.stats.minimumBidCents) ?? 10;
   const [data, setData] = useState(initialData);
   const [menuOpen, setMenuOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
   const [sortMode, setSortMode] = useState<SortMode>("Rank");
-  const [targetRank, setTargetRank] = useState<1 | 2 | 3 | 10>(1);
-  const [bidAmount, setBidAmount] = useState(Math.ceil(initialData.positionPrices["1"] / 100));
+  const [targetRank, setTargetRank] = useState<1 | 2 | 3 | 10>(initialTargetRank);
+  const [bidAmount, setBidAmount] = useState(Math.ceil(initialData.positionPrices[String(initialTargetRank) as "1" | "2" | "3" | "10"] / 100));
   const [modalOpen, setModalOpen] = useState(false);
   const [identity, setIdentity] = useState("");
   const [productName, setProductName] = useState("");
@@ -201,6 +203,7 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
   const submittingRef = useRef(false);
 
   const products = data.products;
+  const bidStepDollars = BID_INCREMENT_CENTS / 100;
   const thresholdDollars = Math.ceil(data.positionPrices[String(targetRank) as "1" | "2" | "3" | "10"] / 100);
   const weeklyClicks = products.reduce((total, product) => total + product.weeklyClicks, 0);
   const categoryOptions = useMemo(() => [{ name: "All", count: data.stats.products }, ...data.categories], [data]);
@@ -532,7 +535,7 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
             <h1 id="hero-title" className="auction-title reveal reveal-two">
               <span>{targetRank === 1 ? "Claim #1 for" : `Claim a top ${targetRank} spot for`}</span>
               <span className="hero-price-control">
-                <button type="button" aria-label="Decrease bid by five dollars" onClick={() => changeBidAmount(bidAmount - 5)}>−</button>
+                <button type="button" aria-label={`Decrease bid by ${formatDollars(BID_INCREMENT_CENTS)}`} onClick={() => changeBidAmount(bidAmount - bidStepDollars)}>−</button>
                 <label className="hero-amount">
                   <span>$</span>
                   <input
@@ -543,7 +546,7 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
                     onChange={(event) => changeBidAmount(Number(event.target.value.replace(/\D/g, "")) || Math.ceil(data.stats.minimumBidCents / 100))}
                   />
                 </label>
-                <button type="button" aria-label="Increase bid by five dollars" onClick={() => changeBidAmount(bidAmount + 5)}>+</button>
+                <button type="button" aria-label={`Increase bid by ${formatDollars(BID_INCREMENT_CENTS)}`} onClick={() => changeBidAmount(bidAmount + bidStepDollars)}>+</button>
               </span>
             </h1>
             <p className="auction-description reveal reveal-three"><strong>New spots start at {formatDollars(data.stats.minimumBidCents)}.</strong> Pay once, stay listed until you’re outbid, and see every click you earn.</p>
@@ -667,7 +670,7 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
                 <div className="empty-state">
                   <div><Icon name={products.length ? "search" : "spark"} size={25} /></div>
                   <h3>{!data.available ? "Leaderboard temporarily unavailable" : products.length ? "No products found" : "The first spot is open"}</h3>
-                  <p>{!data.available ? "We couldn’t reach the live database. Please refresh shortly." : products.length ? "Try another search or clear your category filter." : "Be the first product on OverMCP. New listings start at $5."}</p>
+                  <p>{!data.available ? "We couldn’t reach the live database. Please refresh shortly." : products.length ? "Try another search or clear your category filter." : `Be the first product on OverMCP. New listings start at ${formatDollars(data.stats.minimumBidCents)}.`}</p>
                   {data.available && (products.length ? <button onClick={() => { setQuery(""); setCategory("All"); }}>Reset filters</button> : <button onClick={openBidModal}>Claim #1</button>)}
                 </div>
               )}
@@ -688,7 +691,7 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
             <div className="section-heading inverse-heading"><div><div className="eyebrow"><span>03</span> A clearer way to be discovered</div><h2 id="how-title">Simple by design.<br />Transparent by default.</h2></div><p>One clear transaction, measurable results, and a public board that makes every move easy to understand.</p></div>
             <div className="how-grid">
               <article><span className="step-number">01</span><div className="step-visual visual-list"><i /><i /><i /></div><h3>List your product</h3><p>Submit any product URL or @handle with the name and description you want visitors to see.</p></article>
-              <article><span className="step-number">02</span><div className="step-visual visual-bid"><span>$</span><strong>5</strong><i>+</i></div><h3>Choose your reach</h3><p>Bid for the position you want. Start at $5 and see the current threshold before paying.</p></article>
+              <article><span className="step-number">02</span><div className="step-visual visual-bid"><span>$</span><strong>{formatDollarAmount(data.stats.minimumBidCents)}</strong><i>+</i></div><h3>Choose your reach</h3><p>Bid for the position you want. Start at {formatDollars(data.stats.minimumBidCents)} and see the current threshold before paying.</p></article>
               <article><span className="step-number">03</span><div className="step-visual visual-chart"><i /><i /><i /><i /><i /></div><h3>Measure real intent</h3><p>See tracked outbound clicks and the exact position your confirmed bid total earns.</p></article>
             </div>
           </div>

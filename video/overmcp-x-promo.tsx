@@ -185,7 +185,7 @@ function LeaderRow({
         <div style={{ marginTop: 5, color: "#52574b", fontSize: 14 }}>{mention ? "6 tracked clicks · founder credit" : "Visible first · clicks tracked"}</div>
       </div>
       <div style={{ justifySelf: "end", textAlign: "right" }}>
-        <strong style={{ display: "block", fontSize: 36 }}>{mention ? "$5" : "$10"}</strong>
+        <strong style={{ display: "block", fontSize: 36 }}>{mention ? "$5" : "$8"}</strong>
         <span style={{ fontSize: 11, fontWeight: 850, letterSpacing: "1px" }}>{mention ? "TOTAL" : "CLAIM #1"}</span>
       </div>
     </div>
@@ -330,7 +330,7 @@ function PriceScene() {
   const frame = useCurrentFrame();
   const flip = bounce(frame, 14, { damping: 10, stiffness: 260, mass: 0.48 });
   const ring = appear(frame, 4, 20);
-  const price = frame < 17 ? "$5" : "$10";
+  const price = frame < 17 ? "$3" : "$8";
 
   return (
     <AbsoluteFill style={{ opacity: sceneOpacity(frame, 49, 3), overflow: "hidden", color: C.paper, background: C.orange, fontFamily: font }}>
@@ -369,7 +369,7 @@ function CtaScene() {
         <div style={{ ...slide(frame, 11, 0, 42), marginTop: 37, color: "#b7bbb0", fontSize: 23, fontWeight: 700 }}>Get seen. Get clicked. Stay until you’re outbid.</div>
         <div style={{ marginTop: 42, opacity: clamp(button), transform: `translateY(${interpolate(button, [0, 1], [45, 0])}px) scale(${interpolate(button, [0, 1], [0.78, 1]) * pulse})`, padding: "22px 38px", color: C.ink, background: C.lime, border: `3px solid ${C.paper}`, borderRadius: 18, boxShadow: `0 0 0 8px rgba(217,255,63,.13), 12px 12px 0 ${C.orange}`, fontSize: 29, fontWeight: 950, letterSpacing: "-.6px" }}>OVERMCP.COM&nbsp;&nbsp;→</div>
       </div>
-      <div style={{ position: "absolute", left: 70, right: 70, bottom: 45, display: "flex", justifyContent: "space-between", color: "#7e8377", fontSize: 13, fontWeight: 850, letterSpacing: "2.2px" }}><span>THE LIVE PRODUCT LEADERBOARD</span><span>STARTS AT $5 · PAY ONCE</span></div>
+      <div style={{ position: "absolute", left: 70, right: 70, bottom: 45, display: "flex", justifyContent: "space-between", color: "#7e8377", fontSize: 13, fontWeight: 850, letterSpacing: "2.2px" }}><span>THE LIVE PRODUCT LEADERBOARD</span><span>STARTS AT $3 · PAY ONCE</span></div>
     </AbsoluteFill>
   );
 }
