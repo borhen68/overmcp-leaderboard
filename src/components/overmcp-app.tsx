@@ -54,6 +54,7 @@ function Icon({ name, size = 18, strokeWidth = 1.8 }: { name: string; size?: num
     external: <><path d="M14 4h6v6"/><path d="m10 14 10-10"/><path d="M20 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4"/></>,
     close: <><path d="m6 6 12 12"/><path d="m18 6-12 12"/></>,
     menu: <><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></>,
+    globe: <><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></>,
     spark: <path d="m12 3 1.2 5.8L19 10l-5.8 1.2L12 17l-1.2-5.8L5 10l5.8-1.2L12 3Z"/>,
     users: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></>,
     bolt: <path d="m13 2-9 12h7l-1 8 9-12h-7l1-8Z"/>,
@@ -73,11 +74,12 @@ export function Logo() {
     <a className="brand" href="/" aria-label="OverMCP home">
       <span className="brand-glyph" aria-hidden="true">
         <svg viewBox="0 0 32 32" role="presentation">
-          <circle cx="13.5" cy="18.5" r="8.5" />
-          <path d="M18.5 13.5 27 5m-6.5 0H27v6.5" />
+          <rect className="brand-glyph-bg" x="2" y="2" width="28" height="28" rx="9" />
+          <path className="brand-glyph-line" d="m7.5 21 5.2-5.1 4.1 3.4L24.5 11" />
+          <path className="brand-glyph-line" d="M19.7 11h4.8v4.8" />
         </svg>
       </span>
-      <span className="brand-wordmark" aria-hidden="true">ver<span>mcp</span></span>
+      <span className="brand-wordmark" aria-hidden="true">over<span>mcp</span></span>
     </a>
   );
 }
@@ -323,15 +325,6 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
     });
   }, [category, products, query, sortMode]);
 
-  const tickerItems = data.categories.length > 1
-    ? data.categories.map((item) => `${item.name} · ${formatInteger(item.count)}`)
-    : [
-        `${formatInteger(data.stats.products)} live product${data.stats.products === 1 ? "" : "s"}`,
-        `${formatInteger(data.stats.totalClicks)} tracked click${data.stats.totalClicks === 1 ? "" : "s"}`,
-        `Placements start at ${formatDollars(data.stats.minimumBidCents)}`,
-        "Bids set the rank",
-      ];
-
   function chooseRank(rank: 1 | 3 | 10) {
     checkoutRequestId.current = null;
     setTargetRank(rank);
@@ -514,7 +507,7 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
       </header>
 
       <main>
-        <section className="hero container" aria-labelledby="hero-title">
+        <section className="auction-hero container" aria-labelledby="hero-title">
           <a className="public-stats-pill" href={DATAFAST_SHARE_URL} target="_blank" rel="noopener noreferrer" aria-label="See live OverMCP analytics on DataFast">
             <span className="public-stats-online"><i /> {formatInteger(publicStats.onlineVisitors)} online</span>
             <span className="public-stats-separator" aria-hidden="true">·</span>
@@ -522,62 +515,53 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
             <span className="public-stats-separator" aria-hidden="true">·</span>
             <strong>see stats <span aria-hidden="true">→</span></strong>
           </a>
-          <div className="hero-copy">
-            <div className="eyebrow reveal reveal-one"><span>01</span> The live product leaderboard</div>
-            <h1 id="hero-title" className="reveal reveal-two">Claim the internet’s <em>top spot.</em></h1>
-            <p className="hero-description reveal reveal-three">Bid for visibility, keep your rank until you’re outbid, and track every visit you earn.</p>
-            <div className="hero-actions reveal reveal-four">
-              <button className="button button-primary" onClick={openBidModal}>Claim the #1 spot <Icon name="arrow" /></button>
-              <a className="button button-ghost" href="#leaderboard">Explore the leaderboard</a>
-            </div>
-            <div className="hero-proof reveal reveal-five">
-              {products.length > 0 && <div className="avatar-stack" aria-hidden="true">
-                {products.slice(0, 3).map((product) => <span key={product.id}>{product.name.slice(0, 1).toUpperCase()}</span>)}
-                <span>+</span>
-              </div>}
-              <p><strong>{formatInteger(publicStats.onlineVisitors)} {publicStats.onlineVisitors === 1 ? "person" : "people"}</strong><br />exploring right now</p>
-              <div className="proof-divider" />
-              <p><strong>{formatCompact(weeklyClicks)} clicks</strong><br />delivered this week</p>
-            </div>
-          </div>
-
-          <div className="bid-card reveal reveal-three">
-            <div className="bid-card-topline"><span><i /> Live position auction</span><span className="round-label">BIDS SET RANK</span></div>
-            <div className={`current-leader ${products[0] ? "has-leader" : "is-open"}`}>
-              {products[0] ? <>
-                <ProductMark id={products[0].id} name={products[0].name} hasIcon={products[0].hasIcon} className="leader-product-mark" style={{ "--leader-accent": paletteFor(products[0].id)[0], "--leader-soft": paletteFor(products[0].id)[1] } as React.CSSProperties} />
-                <div className="leader-product-copy"><span>Currently leading</span><strong>{products[0].name}</strong></div>
-                <div className="leader-product-stats"><strong>{formatDollars(products[0].bidCents)}</strong><span>{formatCompact(products[0].totalClicks)} tracked clicks</span></div>
-              </> : <>
-                <div className="leader-product-mark open-mark">#1</div>
-                <div className="leader-product-copy"><span>Currently leading</span><strong>No leader yet — be first</strong></div>
-                <div className="leader-product-stats"><strong>{formatDollars(data.stats.minimumBidCents)}</strong><span>opening bid</span></div>
-              </>}
-            </div>
-            <div className="auction-claim">
-              <div className="claim-line">
-                <strong>Claim #{targetRank} for</strong>
-                <label className="compact-amount">
+          <div className="auction-hero-copy">
+            <div className="hero-kicker reveal reveal-one"><span className="live-dot" /> The live product leaderboard</div>
+            <h1 id="hero-title" className="auction-title reveal reveal-two">
+              <span>Claim #{targetRank} for</span>
+              <span className="hero-price-control">
+                <button type="button" aria-label="Decrease bid by five dollars" onClick={() => { checkoutRequestId.current = null; setBidAmount((amount) => Math.max(5, amount - 5)); }}>−</button>
+                <label className="hero-amount">
                   <span>$</span>
-                  <input aria-label="Bid amount in dollars" inputMode="numeric" value={bidAmount} onChange={(event) => { checkoutRequestId.current = null; setBidAmount(Math.max(5, Number(event.target.value.replace(/\D/g, "")) || 5)); }} />
+                  <input
+                    aria-label="Bid amount in dollars"
+                    inputMode="numeric"
+                    style={{ width: `${Math.max(2, String(bidAmount).length)}ch` }}
+                    value={bidAmount}
+                    onChange={(event) => { checkoutRequestId.current = null; setBidAmount(Math.max(5, Number(event.target.value.replace(/\D/g, "")) || 5)); }}
+                  />
                 </label>
-                <div className="stepper">
-                  <button type="button" aria-label="Decrease bid" onClick={() => { checkoutRequestId.current = null; setBidAmount((amount) => Math.max(5, amount - 5)); }}>−</button>
-                  <button type="button" aria-label="Increase bid" onClick={() => { checkoutRequestId.current = null; setBidAmount((amount) => amount + 5); }}>+</button>
-                </div>
+                <button type="button" aria-label="Increase bid by five dollars" onClick={() => { checkoutRequestId.current = null; setBidAmount((amount) => amount + 5); }}>+</button>
+              </span>
+            </h1>
+            <p className="auction-description reveal reveal-three"><strong>New spots start at {formatDollars(data.stats.minimumBidCents)}.</strong> Pay once, stay listed until you’re outbid, and see every click you earn.</p>
+
+            <div className="hero-position-row reveal reveal-three">
+              <span>Target position</span>
+              <div className="position-tabs" role="group" aria-label="Target leaderboard position">
+                {([1, 3, 10] as const).map((rank) => <button type="button" className={targetRank === rank ? "active" : ""} key={rank} onClick={() => chooseRank(rank)}>#{rank}</button>)}
               </div>
-              <div className="claim-meta">
-                <span>{bidAmount >= thresholdDollars ? `Clears #${targetRank}` : `$${formatInteger(thresholdDollars - bidAmount)} more needed`} · ${formatInteger(thresholdDollars)} threshold</span>
-                <div className="position-tabs" role="group" aria-label="Target leaderboard position">
-                  {([1, 3, 10] as const).map((rank) => <button type="button" className={targetRank === rank ? "active" : ""} key={rank} onClick={() => chooseRank(rank)}>#{rank}</button>)}
-                </div>
-              </div>
+              <strong className={bidAmount >= thresholdDollars ? "is-ready" : ""}>{bidAmount >= thresholdDollars ? `Ready for #${targetRank}` : `$${formatInteger(thresholdDollars - bidAmount)} more needed`}</strong>
             </div>
-            <form className="bid-entry-row" onSubmit={(event) => { event.preventDefault(); openBidModal(); }}>
-              <label className="url-field"><span className="url-icon">↗</span><input value={identity} onChange={(event) => changeIdentity(event.target.value)} onBlur={() => void autofillWebsite(identity)} placeholder="yourproduct.com or @handle" aria-label="Product URL or handle" /></label>
-              <button type="submit" className="button button-primary bid-submit">Preview <Icon name="arrow" /></button>
+
+            <form className="hero-bid-form reveal reveal-four" onSubmit={(event) => { event.preventDefault(); openBidModal(); }}>
+              <label className="hero-url-field"><Icon name="globe" size={20} /><input value={identity} onChange={(event) => changeIdentity(event.target.value)} onBlur={() => void autofillWebsite(identity)} placeholder="Your product URL or @handle" aria-label="Product URL or handle" /></label>
+              <button type="submit" className="button button-primary hero-submit">Claim this spot <Icon name="arrow" size={18} /></button>
             </form>
-            <div className="bid-assurances"><span><Icon name="check" size={14} /> Pay once</span><span><Icon name="check" size={14} /> Stay until outbid</span><span><Icon name="shield" size={14} /> Clicks tracked</span></div>
+            <p className="hero-helper reveal reveal-four">Already on the board? Enter the same URL to increase your bid.</p>
+
+            <div className="hero-assurances reveal reveal-five">
+              <span><Icon name="check" size={15} /> One-time payment</span>
+              <span><Icon name="shield" size={15} /> Secure Stripe checkout</span>
+              <span><Icon name="trend" size={15} /> {formatCompact(weeklyClicks)} real clicks this week</span>
+            </div>
+
+            {products[0] && <button className="hero-leader" type="button" onClick={() => openProduct(products[0])}>
+              <ProductMark id={products[0].id} name={products[0].name} hasIcon={products[0].hasIcon} className="hero-leader-mark" style={{ "--leader-accent": paletteFor(products[0].id)[0], "--leader-soft": paletteFor(products[0].id)[1] } as React.CSSProperties} />
+              <span className="hero-leader-copy"><small>Current #1</small><strong>{products[0].name}</strong></span>
+              <span className="hero-leader-value"><strong>{formatDollars(products[0].bidCents)}</strong><small>{formatInteger(products[0].totalClicks)} clicks</small></span>
+              <Icon name="external" size={16} />
+            </button>}
           </div>
         </section>
 
@@ -619,12 +603,6 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
             ) : <div className="pulse-empty"><span>●</span><p><strong>No bid activity yet</strong>Confirmed bids and credits will appear here.</p></div>}
           </article>
         </section>
-
-        <div className="ticker-wrap" aria-label="Leaderboard facts">
-          <div className="ticker-track">
-            {[...tickerItems, ...tickerItems, ...tickerItems].map((item, index) => <span key={`${item}-${index}`} className={index % tickerItems.length === 0 ? "ticker-title" : ""}>{item}<i>✦</i></span>)}
-          </div>
-        </div>
 
         <section className="leaderboard-section container" id="leaderboard" aria-labelledby="leaderboard-title">
           <div className="section-heading">
@@ -683,21 +661,6 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
               )}
               {data.stats.products > products.length && <div className="load-more">Showing the top {products.length} of {formatInteger(data.stats.products)} products</div>}
             </div>
-
-            <aside className="activity-column">
-              <section className="trust-card">
-                <div className="trust-icon"><Icon name="shield" size={22} /></div>
-                <span className="overline">The OverMCP difference</span>
-                <h3>Money buys the spot.<br />Results prove value.</h3>
-                <p>Every position has a visible price. Bids and outbound clicks stay public so everyone can judge the value.</p>
-                <a href="/rules">See how ranking works <Icon name="arrow" size={14} /></a>
-              </section>
-
-              <section className="mini-card">
-                <span>Saved products</span><strong>{saved.length}</strong>
-                <p>{saved.length ? `${saved.length} product${saved.length === 1 ? "" : "s"} saved on this device.` : "Bookmark products to build your shortlist."}</p>
-              </section>
-            </aside>
           </div>
         </section>
 
@@ -723,8 +686,14 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
           <div className="cta-grid" aria-hidden="true" /><div className="cta-orbit orbit-one" aria-hidden="true" /><div className="cta-orbit orbit-two" aria-hidden="true" />
           <div className="cta-copy"><div className="eyebrow"><span>04</span> Built something worth seeing?</div><h2>Don’t wait to<br /><em>be discovered.</em></h2><p>Join the live leaderboard where visibility is transparent and every outbound visit is measured.</p><button className="button button-dark" onClick={openBidModal}>List your product <Icon name="arrow" /></button></div>
           <div className="cta-card-stack" aria-hidden="true">
-            {products[1] && <div className="float-card card-back"><span>#{products[1].rank}</span><i>{products[1].name.slice(0, 1).toUpperCase()}</i><strong>{products[1].name}</strong><small>{formatDollars(products[1].bidCents)} total bid</small></div>}
-            <div className="float-card card-front"><span>#1</span><i>{products[0]?.name.slice(0, 1).toUpperCase() ?? "+"}</i><strong>{products[0]?.name ?? "Position available"}</strong><small>{products[0] ? `${formatInteger(products[0].totalClicks)} tracked visits` : `Starts at ${formatDollars(data.stats.minimumBidCents)}`}</small></div>
+            {products[1] && <div className="float-card card-back"><span className="float-rank">#{products[1].rank}</span><ProductMark id={products[1].id} name={products[1].name} hasIcon={products[1].hasIcon} className="float-card-logo" style={{ "--float-accent": paletteFor(products[1].id)[0], "--float-soft": paletteFor(products[1].id)[1] } as React.CSSProperties} /><strong>{products[1].name}</strong><small>{formatDollars(products[1].bidCents)} total bid</small></div>}
+            <div className="float-card card-front">
+              <span className="float-rank">#1</span>
+              {products[0]
+                ? <ProductMark id={products[0].id} name={products[0].name} hasIcon={products[0].hasIcon} className="float-card-logo" style={{ "--float-accent": paletteFor(products[0].id)[0], "--float-soft": paletteFor(products[0].id)[1] } as React.CSSProperties} />
+                : <i className="float-card-logo float-card-logo-empty">+</i>}
+              <strong>{products[0]?.name ?? "Position available"}</strong><small>{products[0] ? `${formatInteger(products[0].totalClicks)} tracked visits` : `Starts at ${formatDollars(data.stats.minimumBidCents)}`}</small>
+            </div>
           </div>
         </section>
 
