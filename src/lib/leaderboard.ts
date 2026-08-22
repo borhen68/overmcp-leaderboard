@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gt, max, min, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, isNotNull, max, min, sql } from "drizzle-orm";
 import { getDatabase, isDatabaseConfigured } from "@/db";
 import { bids, outboundClicks, products, visitors } from "@/db/schema";
 import { BID_INCREMENT_CENTS, MINIMUM_BID_CENTS } from "@/lib/constants";
@@ -23,6 +23,8 @@ export function emptyLeaderboard(
     products: [],
     activity: [],
     categories: [],
+    marketHistory: [],
+    marketMoves: [],
     stats: {
       products: 0,
       totalClicks: 0,
@@ -30,6 +32,7 @@ export function emptyLeaderboard(
       totalVisitors: 0,
       minimumBidCents: MINIMUM_BID_CENTS,
       confirmedBidCents: 0,
+      confirmedBidCents24HoursAgo: 0,
       paidBidCents: 0,
       creditBidCents: 0,
       launchedAt: null,
@@ -45,6 +48,7 @@ export async function getLeaderboardData(): Promise<LeaderboardPayload> {
   try {
     const db = getDatabase();
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const paidBidTotals = db
       .select({
         productId: bids.productId,
@@ -114,9 +118,42 @@ export async function getLeaderboardData(): Promise<LeaderboardPayload> {
       .groupBy(products.category)
       .orderBy(desc(count()));
 
+    const marketDay = sql<string>`strftime('%Y-%m-%d', ${bids.paidAt} / 1000, 'unixepoch')`;
+    const marketHistoryQuery = db
+      .select({
+        date: marketDay.as("market_day"),
+        volumeCents: sql<number>`sum(${bids.amountCents} - ${bids.refundedCents})`.mapWith(Number),
+        paidVolumeCents: sql<number>`sum(case when ${bids.fundingSource} = 'stripe' then ${bids.amountCents} - ${bids.refundedCents} else 0 end)`.mapWith(Number),
+        creditVolumeCents: sql<number>`sum(case when ${bids.fundingSource} = 'credit' then ${bids.amountCents} - ${bids.refundedCents} else 0 end)`.mapWith(Number),
+        bidCount: count(bids.id),
+      })
+      .from(bids)
+      .innerJoin(products, eq(bids.productId, products.id))
+      .where(and(eq(bids.status, "paid"), eq(products.status, "active"), isNotNull(bids.paidAt)))
+      .groupBy(marketDay)
+      .orderBy(asc(marketDay));
+
+    const marketMovesQuery = db
+      .select({
+        id: bids.id,
+        productId: products.id,
+        productName: products.displayName,
+        hasIcon: sql<number>`case when ${products.iconDataUrl} is null then 0 else 1 end`.mapWith(Number),
+        amountCents: sql<number>`${bids.amountCents} - ${bids.refundedCents}`.mapWith(Number),
+        cumulativeCents: sql<number>`sum(${bids.amountCents} - ${bids.refundedCents}) over (order by ${bids.paidAt} asc, ${bids.id} asc)`.mapWith(Number),
+        fundingSource: bids.fundingSource,
+        happenedAt: bids.paidAt,
+      })
+      .from(bids)
+      .innerJoin(products, eq(bids.productId, products.id))
+      .where(and(eq(bids.status, "paid"), eq(products.status, "active"), isNotNull(bids.paidAt)))
+      .orderBy(desc(bids.paidAt), desc(bids.id))
+      .limit(100);
+
     const boardTotalsQuery = db
       .select({
         confirmedBidCents: sql<number>`coalesce(sum(${bids.amountCents} - ${bids.refundedCents}), 0)`.mapWith(Number),
+        confirmedBidCents24HoursAgo: sql<number>`coalesce(sum(case when ${bids.paidAt} <= ${twentyFourHoursAgo} then ${bids.amountCents} - ${bids.refundedCents} else 0 end), 0)`.mapWith(Number),
         paidBidCents: sql<number>`coalesce(sum(case when ${bids.fundingSource} = 'stripe' then ${bids.amountCents} - ${bids.refundedCents} else 0 end), 0)`.mapWith(Number),
         creditBidCents: sql<number>`coalesce(sum(case when ${bids.fundingSource} = 'credit' then ${bids.amountCents} - ${bids.refundedCents} else 0 end), 0)`.mapWith(Number),
         launchedAt: min(bids.paidAt).as("launched_at"),
@@ -135,6 +172,8 @@ export async function getLeaderboardData(): Promise<LeaderboardPayload> {
       onlineRows,
       visitorCountRows,
       boardTotalsRows,
+      marketHistoryRows,
+      marketMoveRows,
     ] = await Promise.all([
       leaderboardQuery,
       activityQuery,
@@ -144,7 +183,26 @@ export async function getLeaderboardData(): Promise<LeaderboardPayload> {
       db.select({ value: count() }).from(visitors).where(gt(visitors.lastSeenAt, twoMinutesAgo)),
       db.select({ value: count() }).from(visitors),
       boardTotalsQuery,
+      marketHistoryQuery,
+      marketMovesQuery,
     ]);
+
+    let marketValueCents = 0;
+    const marketHistory = marketHistoryRows.map((row) => {
+      const openCents = marketValueCents;
+      marketValueCents += row.volumeCents;
+      return {
+        date: row.date,
+        openCents,
+        highCents: Math.max(openCents, marketValueCents),
+        lowCents: Math.min(openCents, marketValueCents),
+        closeCents: marketValueCents,
+        volumeCents: row.volumeCents,
+        paidVolumeCents: row.paidVolumeCents,
+        creditVolumeCents: row.creditVolumeCents,
+        bidCount: row.bidCount,
+      };
+    });
 
     const rankedProducts = leaderboardRows.map((row, index) => ({
       id: row.id,
@@ -180,6 +238,17 @@ export async function getLeaderboardData(): Promise<LeaderboardPayload> {
         happenedAt: row.happenedAt.toISOString(),
       }] : []),
       categories: categoryRows.map((row) => ({ name: row.name, count: row.count })),
+      marketHistory,
+      marketMoves: marketMoveRows.flatMap((row) => row.happenedAt ? [{
+        id: row.id,
+        productId: row.productId,
+        productName: row.productName,
+        hasIcon: Boolean(row.hasIcon),
+        amountCents: row.amountCents,
+        cumulativeCents: row.cumulativeCents,
+        fundingSource: row.fundingSource,
+        happenedAt: row.happenedAt.toISOString(),
+      }] : []).reverse(),
       stats: {
         products: productCountRows[0]?.value ?? 0,
         totalClicks: clickCountRows[0]?.value ?? 0,
@@ -187,6 +256,7 @@ export async function getLeaderboardData(): Promise<LeaderboardPayload> {
         totalVisitors: visitorCountRows[0]?.value ?? 0,
         minimumBidCents: MINIMUM_BID_CENTS,
         confirmedBidCents: boardTotalsRows[0]?.confirmedBidCents ?? 0,
+        confirmedBidCents24HoursAgo: boardTotalsRows[0]?.confirmedBidCents24HoursAgo ?? 0,
         paidBidCents: boardTotalsRows[0]?.paidBidCents ?? 0,
         creditBidCents: boardTotalsRows[0]?.creditBidCents ?? 0,
         launchedAt: boardTotalsRows[0]?.launchedAt?.toISOString() ?? null,

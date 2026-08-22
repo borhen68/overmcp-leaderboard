@@ -9,9 +9,10 @@ import {
   useState,
 } from "react";
 import { BID_INCREMENT_CENTS, PRODUCT_CATEGORIES } from "@/lib/constants";
-import type { LeaderboardPayload, LeaderboardProduct } from "@/lib/types";
+import type { LeaderboardPayload, LeaderboardProduct, MarketDay, MarketMove } from "@/lib/types";
 
 type SortMode = "Rank" | "Clicks" | "Newest";
+type MarketRange = "7D" | "30D" | "ALL";
 type AutofillStatus = "idle" | "loading" | "success" | "error";
 
 type WebsiteMetadataResult = {
@@ -79,7 +80,6 @@ export function Logo() {
           <path d="M35 29 51 13M40 13h11v11" />
         </svg>
       </span>
-      <span className="brand-wordmark" aria-hidden="true">ver<span>mcp</span></span>
     </a>
   );
 }
@@ -151,39 +151,250 @@ function ProductMark({
 
   return (
     <span className={`${className} product-mark`} style={style} aria-hidden="true">
-      <span>{name.slice(0, 1).toUpperCase()}</span>
+      {(!hasIcon || iconFailed) && <span>{name.slice(0, 1).toUpperCase()}</span>}
       {hasIcon && !iconFailed && <img src={`/api/product-icon/${id}`} alt="" onError={() => setIconFailed(true)} />}
     </span>
   );
 }
 
-function TrendingAdCard({ product, index, onOpen }: { product: LeaderboardProduct; index: number; onOpen: () => void }) {
-  const palette = paletteFor(product.id);
-  return (
-    <button
-      className="trending-ad-card"
-      onClick={onOpen}
-      style={{ "--trending-accent": palette[0], "--trending-background": palette[1] } as React.CSSProperties}
-      aria-label={`Visit ${product.name}, trending number ${index + 1} with ${formatInteger(product.weeklyClicks)} clicks this week`}
-    >
-      <span className="trending-ad-topline"><strong>Trending #{index + 1}</strong><span>{formatCompact(product.weeklyClicks)} clicks</span></span>
-      <ProductMark id={product.id} name={product.name} hasIcon={product.hasIcon} className="trending-ad-logo" />
-      <strong className="trending-ad-name">{product.name}</strong>
-      <span className="trending-ad-description">{product.description}</span>
-      <span className="trending-ad-action">Visit product <Icon name="external" size={14} /></span>
-    </button>
-  );
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function utcDayStart(value: string) {
+  const date = new Date(value);
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
 }
 
-function TrendingOpenCard({ minimumBidCents, onOpen }: { minimumBidCents: number; onOpen: () => void }) {
+function utcDayKey(timestamp: number) {
+  return new Date(timestamp).toISOString().slice(0, 10);
+}
+
+function dayLabel(date: string, includeYear = false) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    ...(includeYear ? { year: "2-digit" } : {}),
+    timeZone: "UTC",
+  }).format(new Date(`${date}T00:00:00Z`));
+}
+
+function niceChartStep(value: number) {
+  if (value <= 0) return 100;
+  const power = 10 ** Math.floor(Math.log10(value));
+  const fraction = value / power;
+  const niceFraction = fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 2.5 ? 2.5 : fraction <= 5 ? 5 : 10;
+  return niceFraction * power;
+}
+
+function marketRangeStart(range: MarketRange, moves: MarketMove[], generatedAt: string) {
+  const now = new Date(generatedAt).getTime();
+  if (range === "7D") return now - 7 * DAY_MS;
+  if (range === "30D") return now - 30 * DAY_MS;
+  if (!moves.length) return now - 7 * DAY_MS;
+  const firstMove = new Date(moves[0].happenedAt).getTime();
+  const activitySpan = Math.max(60 * 60 * 1000, now - firstMove);
+  return Math.max(0, firstMove - Math.min(DAY_MS, activitySpan * 0.14));
+}
+
+function marketLinePath(points: Array<{ x: number; y: number }>) {
+  if (!points.length) return "";
+  return points.slice(1).reduce((path, point) => `${path} H ${point.x} V ${point.y}`, `M ${points[0].x} ${points[0].y}`);
+}
+
+function MarketChart({
+  history,
+  moves,
+  stats,
+  generatedAt,
+  entryRank,
+  entryPriceCents,
+  onlineVisitors,
+  totalVisitors,
+  onClaim,
+}: {
+  history: MarketDay[];
+  moves: MarketMove[];
+  stats: LeaderboardPayload["stats"];
+  generatedAt: string;
+  entryRank: 1 | 2 | 3 | 10;
+  entryPriceCents: number;
+  onlineVisitors: number;
+  totalVisitors: number;
+  onClaim: () => void;
+}) {
+  const [range, setRange] = useState<MarketRange>("ALL");
+  const [chartWidth, setChartWidth] = useState(900);
+  const chartFrame = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const element = chartFrame.current;
+    if (!element) return;
+    const updateWidth = () => setChartWidth(Math.max(300, Math.round(element.getBoundingClientRect().width)));
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  const compact = chartWidth < 580;
+  const height = compact ? 300 : 338;
+  const margin = { top: 27, right: compact ? 14 : 26, bottom: 41, left: compact ? 43 : 57 };
+  const plotBottom = height - margin.bottom;
+  const plotWidth = chartWidth - margin.left - margin.right;
+  const plotHeight = plotBottom - margin.top;
+  const now = new Date(generatedAt).getTime();
+  const rangeStart = marketRangeStart(range, moves, generatedAt);
+  const visibleMoves = moves.filter((move) => {
+    const timestamp = new Date(move.happenedAt).getTime();
+    return timestamp >= rangeStart && timestamp <= now;
+  });
+  const lastBeforeRange = [...moves].reverse().find((move) => new Date(move.happenedAt).getTime() < rangeStart);
+  const startingValue = lastBeforeRange?.cumulativeCents
+    ?? (visibleMoves[0] ? Math.max(0, visibleMoves[0].cumulativeCents - visibleMoves[0].amountCents) : stats.confirmedBidCents);
+  const xForTime = (timestamp: number) => margin.left + ((timestamp - rangeStart) / Math.max(1, now - rangeStart)) * plotWidth;
+  const rawMax = Math.max(stats.minimumBidCents, stats.confirmedBidCents, ...visibleMoves.map((move) => move.cumulativeCents));
+  const stepValue = niceChartStep(rawMax / 3);
+  const maxValue = Math.max(stepValue * 3, Math.ceil(rawMax / stepValue) * stepValue);
+  const valueY = (value: number) => plotBottom - (value / Math.max(1, maxValue)) * plotHeight;
+  const linePoints = [
+    { x: margin.left, y: valueY(startingValue) },
+    ...visibleMoves.map((move) => ({ x: xForTime(new Date(move.happenedAt).getTime()), y: valueY(move.cumulativeCents) })),
+    { x: chartWidth - margin.right, y: valueY(stats.confirmedBidCents) },
+  ];
+  const linePath = marketLinePath(linePoints);
+  const areaPath = `${linePath} L ${chartWidth - margin.right} ${plotBottom} L ${margin.left} ${plotBottom} Z`;
+  const currentValue = stats.confirmedBidCents;
+  const change24Hours = currentValue - stats.confirmedBidCents24HoursAgo;
+  const percentageChange = stats.confirmedBidCents24HoursAgo > 0
+    ? (change24Hours / stats.confirmedBidCents24HoursAgo) * 100
+    : null;
+  const rangeDayStart = utcDayStart(new Date(rangeStart).toISOString());
+  const visibleDays = history.filter((day) => utcDayStart(`${day.date}T00:00:00Z`) >= rangeDayStart);
+  const rangeVolume = visibleDays.reduce((total, day) => total + day.volumeCents, 0);
+  const rangeBids = visibleDays.reduce((total, day) => total + day.bidCount, 0);
+  const rangeChange = currentValue - startingValue;
+  const entryLabel = entryRank === 1 ? "#1" : `Top ${entryRank}`;
+  const axisTickCount = compact ? 4 : 6;
+  const axisTicks = Array.from({ length: axisTickCount }, (_, index) => rangeStart + ((now - rangeStart) * index) / (axisTickCount - 1));
+
   return (
-    <button className="trending-ad-card trending-open-card" onClick={onOpen} aria-label={`List your product from ${formatDollars(minimumBidCents)}`}>
-      <span className="trending-ad-topline"><strong>Open listing</strong><span>Available</span></span>
-      <span className="trending-ad-logo trending-open-logo">+</span>
-      <strong className="trending-ad-name">Your product could trend here</strong>
-      <span className="trending-ad-description">Join the board, earn real clicks, and qualify through actual seven-day traffic.</span>
-      <span className="trending-ad-action">List from {formatDollars(minimumBidCents)} <Icon name="arrow" size={14} /></span>
-    </button>
+    <article className="market-chart-card">
+      <header className="market-chart-topbar">
+        <div className="market-chart-identity">
+          <span className="market-chart-logo"><img src="/icon.svg" alt="" /></span>
+          <div><strong>OverMCP Market Pulse</strong><small>Every rise comes from a real confirmed move</small></div>
+          <span className="market-live-badge"><i /> LIVE</span>
+          <a className="market-chart-audience" href={DATAFAST_SHARE_URL} target="_blank" rel="noopener noreferrer"><i /> {formatInteger(onlineVisitors)} online <span>·</span> {formatInteger(totalVisitors)} visitors <b>↗</b></a>
+        </div>
+        <div className="market-chart-controls">
+          <div className="market-range" role="group" aria-label="Chart date range">
+            {(["7D", "30D", "ALL"] as MarketRange[]).map((option) => (
+              <button key={option} className={range === option ? "active" : ""} onClick={() => setRange(option)} aria-pressed={range === option}>{option}</button>
+            ))}
+          </div>
+          <button className="market-chart-claim" onClick={onClaim}><span>Claim {entryLabel}</span><strong>{formatDollars(entryPriceCents)}</strong><Icon name="arrow" size={15} /></button>
+        </div>
+      </header>
+
+      <div className="market-chart-summary">
+        <div className="market-chart-quote">
+          <span>Total confirmed value</span>
+          <strong>{formatDollars(currentValue)}</strong>
+          <small className={change24Hours > 0 ? "is-up" : change24Hours < 0 ? "is-down" : ""}>
+            <Icon name="trend" size={14} />
+            {change24Hours === 0
+              ? "No change in the last 24 hours"
+              : `${change24Hours > 0 ? "+" : "−"}${formatDollars(Math.abs(change24Hours))}${percentageChange === null ? "" : ` (${change24Hours > 0 ? "+" : "−"}${Math.abs(percentageChange).toFixed(1)}%)`} vs last 24 hours`}
+          </small>
+        </div>
+        <div className="market-chart-stats">
+          <div><span>Added ({range.toLowerCase()})</span><strong>+{formatDollars(rangeVolume)}</strong></div>
+          <div><span>Value change</span><strong>+{formatDollars(Math.max(0, rangeChange))}</strong></div>
+          <div><span>Confirmed moves</span><strong>{formatInteger(rangeBids)}</strong></div>
+          <div><span>Clicks delivered</span><strong>{formatInteger(stats.totalClicks)}</strong></div>
+        </div>
+      </div>
+
+      <div className="market-chart-frame" ref={chartFrame}>
+        <svg
+          className="market-chart-svg"
+          viewBox={`0 0 ${chartWidth} ${height}`}
+          role="img"
+          aria-label={`Timeline of OverMCP confirmed placement value over ${range.toLowerCase()}`}
+        >
+          <title>OverMCP confirmed placement value — real bid history only</title>
+          <defs>
+            <linearGradient id="marketArea" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="#45c98a" stopOpacity=".28" />
+              <stop offset="100%" stopColor="#45c98a" stopOpacity=".015" />
+            </linearGradient>
+            <filter id="marketGlow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="4" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+          </defs>
+          {[0, 1, 2, 3].map((tick) => {
+            const value = maxValue - (maxValue / 3) * tick;
+            const y = valueY(value);
+            return (
+              <g className="market-chart-grid" key={tick}>
+                <line x1={margin.left} x2={chartWidth - margin.right} y1={y} y2={y} />
+                <text x={margin.left - 9} y={y + 3} textAnchor="end">{formatDollars(value)}</text>
+              </g>
+            );
+          })}
+          {axisTicks.map((timestamp) => {
+            const x = xForTime(timestamp);
+            return (
+              <text className="market-date-label" x={x} y={height - 17} textAnchor={x < margin.left + 5 ? "start" : x > chartWidth - margin.right - 5 ? "end" : "middle"} key={timestamp}>{dayLabel(utcDayKey(timestamp), range === "ALL")}</text>
+            );
+          })}
+          <path className="market-area" d={areaPath} />
+          <path className="market-value-line-glow" d={linePath} />
+          <path className="market-value-line" d={linePath} />
+          <line className="market-value-baseline" x1={margin.left} x2={chartWidth - margin.right} y1={plotBottom} y2={plotBottom} />
+
+          {visibleMoves.map((move, index) => {
+            const x = xForTime(new Date(move.happenedAt).getTime());
+            const y = valueY(move.cumulativeCents);
+            const labelWidth = 148;
+            const labelX = x > chartWidth - 190 ? x - labelWidth - 24 : x + 24;
+            const labelY = y < margin.top + 65 ? y + 25 : y - 57;
+            const showLabel = visibleMoves.length <= 4 || index >= visibleMoves.length - 3;
+            const shortName = move.productName.length > 20 ? `${move.productName.slice(0, 19)}…` : move.productName;
+            return (
+              <g className={`market-move-marker${showLabel ? " is-featured" : ""}`} key={move.id}>
+                <line className="market-move-guide" x1={x} x2={x} y1={y + 20} y2={plotBottom} />
+                <circle className="market-move-halo" cx={x} cy={y} r={20} />
+                <circle className="market-move-disc" cx={x} cy={y} r={16} />
+                {move.hasIcon
+                  ? <image className="market-move-icon" href={`/api/product-icon/${move.productId}`} x={x - 13} y={y - 13} width="26" height="26" />
+                  : <text className="market-move-fallback" x={x} y={y + 4} textAnchor="middle">{move.productName.slice(0, 1).toUpperCase()}</text>}
+                <g className="market-move-label" transform={`translate(${labelX} ${labelY})`}>
+                  <rect width={labelWidth} height="48" rx="9" />
+                  <text x="10" y="17" className="market-move-name">{shortName}</text>
+                  <text x="10" y="34" className="market-move-meta">+{formatDollars(move.amountCents)} · {move.fundingSource === "credit" ? "founder credit" : "paid bid"}</text>
+                </g>
+              </g>
+            );
+          })}
+          <g className="market-current-point" transform={`translate(${chartWidth - margin.right} ${valueY(currentValue)})`}>
+            <circle r="8" />
+            <circle r="3.5" />
+          </g>
+        </svg>
+        {!moves.length && <div className="market-chart-empty"><strong>The market opens with the first confirmed bid.</strong><span>No movement is simulated.</span></div>}
+      </div>
+
+      <div className="market-movers">
+        <div className="market-movers-heading"><strong>Who moved the market</strong><small>Each logo marks the product behind a confirmed increase</small></div>
+        {visibleMoves.length ? <div className="market-movers-list">{[...visibleMoves].reverse().slice(0, 4).map((move) => (
+          <div className="market-mover" key={move.id}>
+            <ProductMark id={move.productId} name={move.productName} hasIcon={move.hasIcon} className="market-mover-logo" />
+            <span><strong>{move.productName}</strong><small>{move.fundingSource === "credit" ? "Founder credit" : "Stripe payment"} · {relativeTime(move.happenedAt, generatedAt)}</small></span>
+            <b>+{formatDollars(move.amountCents)}</b>
+          </div>
+        ))}</div> : <div className="market-movers-empty">No confirmed moves in this range.</div>}
+      </div>
+
+      <footer className="market-chart-footnote"><strong>How to read it</strong><span>The line rises only when confirmed value is added.</span><span>Product logos identify who made each move.</span><small>Stripe payments + disclosed founder credits · no simulated data</small></footer>
+    </article>
   );
 }
 
@@ -235,20 +446,10 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
   const products = data.products;
   const bidStepDollars = BID_INCREMENT_CENTS / 100;
   const thresholdDollars = Math.ceil(data.positionPrices[String(targetRank) as "1" | "2" | "3" | "10"] / 100);
-  const weeklyClicks = products.reduce((total, product) => total + product.weeklyClicks, 0);
   const categoryOptions = useMemo(() => [{ name: "All", count: data.stats.products }, ...data.categories], [data]);
-  const trendingProducts = useMemo(
-    () => [...products]
-      .filter((product) => product.weeklyClicks > 0)
-      .sort((a, b) => b.weeklyClicks - a.weeklyClicks || b.totalClicks - a.totalClicks)
-      .slice(0, 5),
-    [products],
-  );
-  const trendingRailItems = useMemo(() => {
-    const items: Array<LeaderboardProduct | null> = [...trendingProducts];
-    if (items.length < 5) items.push(null);
-    return items;
-  }, [trendingProducts]);
+  const marketEntryRank = ([1, 2, 3, 10] as const)
+    .find((rank) => data.positionPrices[String(rank) as "1" | "2" | "3" | "10"] <= data.stats.minimumBidCents) ?? 10;
+  const marketEntryPriceCents = data.positionPrices[String(marketEntryRank) as "1" | "2" | "3" | "10"];
 
   useEffect(() => {
     try {
@@ -385,6 +586,11 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
     setFormError("");
     setModalOpen(true);
     if (identity.trim()) void autofillWebsite(identity);
+  }
+
+  function openMarketClaim() {
+    chooseRank(marketEntryRank);
+    openBidModal();
   }
 
   function changeIdentity(value: string) {
@@ -557,116 +763,51 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
       </header>
 
       <main>
-        <section className="auction-hero container" aria-labelledby="hero-title">
-          <a className="public-stats-pill" href={DATAFAST_SHARE_URL} target="_blank" rel="noopener noreferrer" aria-label="See live OverMCP analytics on DataFast">
-            <span className="public-stats-online"><i /> {formatInteger(publicStats.onlineVisitors)} online</span>
-            <span className="public-stats-separator" aria-hidden="true">·</span>
-            <span>{formatInteger(publicStats.totalVisitors)} visitors since launch</span>
-            <span className="public-stats-separator" aria-hidden="true">·</span>
-            <strong>see stats <span aria-hidden="true">→</span></strong>
-          </a>
-          <div className="auction-hero-copy">
-            <div className="hero-kicker reveal reveal-one"><span className="live-dot" /> The live product leaderboard</div>
-            <h1 id="hero-title" className="auction-title reveal reveal-two">
-              <span>{targetRank === 1 ? "Claim #1 for" : `Claim a top ${targetRank} spot for`}</span>
-              <span className="hero-price-control">
-                <button type="button" aria-label={`Decrease bid by ${formatDollars(BID_INCREMENT_CENTS)}`} onClick={() => changeBidAmount(bidAmount - bidStepDollars)}>−</button>
-                <label className="hero-amount">
-                  <span>$</span>
-                  <input
-                    aria-label="Bid amount in dollars"
-                    inputMode="numeric"
-                    style={{ width: `${Math.max(2, String(bidAmount).length)}ch` }}
-                    value={bidAmount}
-                    onChange={(event) => changeBidAmount(Number(event.target.value.replace(/\D/g, "")) || Math.ceil(data.stats.minimumBidCents / 100))}
-                  />
-                </label>
-                <button type="button" aria-label={`Increase bid by ${formatDollars(BID_INCREMENT_CENTS)}`} onClick={() => changeBidAmount(bidAmount + bidStepDollars)}>+</button>
-              </span>
-            </h1>
-            <p className="auction-description reveal reveal-three"><strong>New spots start at {formatDollars(data.stats.minimumBidCents)}.</strong> Pay once, stay listed until you’re outbid, and see every click you earn.</p>
+        <section className="leaderboard-section container" id="leaderboard" aria-label="Live product leaderboard">
+          {data.available ? (
+            <MarketChart
+              history={data.marketHistory}
+              moves={data.marketMoves}
+              stats={data.stats}
+              generatedAt={data.generatedAt}
+              entryRank={marketEntryRank}
+              entryPriceCents={marketEntryPriceCents}
+              onlineVisitors={publicStats.onlineVisitors}
+              totalVisitors={publicStats.totalVisitors}
+              onClaim={openMarketClaim}
+            />
+          ) : (
+            <div className="market-unavailable"><Icon name="spark" size={25} /><strong>Market chart temporarily unavailable</strong><span>We couldn’t reach the live database. Please refresh shortly.</span></div>
+          )}
 
-            <div className="hero-position-row reveal reveal-three">
+          <div className="market-bid-dock" id="builders">
+            <div className="market-bid-copy"><span>Get on the board</span><strong>{targetRank === 1 ? "Claim the #1 spot" : `Claim a top ${targetRank} spot`}</strong><small>Pay once. Stay listed until another product moves ahead.</small></div>
+            <div className="market-bid-target">
               <span>Target position</span>
               <div className="position-tabs" role="group" aria-label="Target leaderboard position">
                 {([1, 2, 3, 10] as const).map((rank) => <button type="button" className={targetRank === rank ? "active" : ""} key={rank} onClick={() => chooseRank(rank)}>{rank === 1 ? "#1" : `Top ${rank}`}</button>)}
               </div>
-              <strong className={bidAmount >= thresholdDollars ? "is-ready" : ""}>{bidAmount >= thresholdDollars ? (targetRank === 1 ? "Ready for #1" : `Ready for top ${targetRank}`) : `$${formatInteger(thresholdDollars - bidAmount)} more needed`}</strong>
-            </div>
-
-            <form className="hero-bid-form reveal reveal-four" onSubmit={(event) => { event.preventDefault(); openBidModal(); }}>
-              <label className="hero-url-field"><Icon name="globe" size={20} /><input value={identity} onChange={(event) => changeIdentity(event.target.value)} onBlur={() => void autofillWebsite(identity)} placeholder="Your product URL or @handle" aria-label="Product URL or handle" /></label>
-              <button type="submit" className="button button-primary hero-submit" disabled={bidAmount < thresholdDollars}>{bidAmount >= thresholdDollars ? "Claim this spot" : `Add $${formatInteger(thresholdDollars - bidAmount)}`} <Icon name="arrow" size={18} /></button>
-            </form>
-            <p className="hero-helper reveal reveal-four">Already on the board? Enter the same URL to increase your bid.</p>
-
-            <div className="hero-assurances reveal reveal-five">
-              <span><Icon name="check" size={15} /> One-time payment</span>
-              <span><Icon name="shield" size={15} /> Secure Stripe checkout</span>
-              <span><Icon name="trend" size={15} /> {formatCompact(weeklyClicks)} real clicks this week</span>
-            </div>
-
-            {products[0] && <button className="hero-leader" type="button" onClick={() => openProduct(products[0])}>
-              <ProductMark id={products[0].id} name={products[0].name} hasIcon={products[0].hasIcon} className="hero-leader-mark" style={{ "--leader-accent": paletteFor(products[0].id)[0], "--leader-soft": paletteFor(products[0].id)[1] } as React.CSSProperties} />
-              <span className="hero-leader-copy"><small>Current #1</small><strong>{products[0].name}</strong></span>
-              <span className="hero-leader-value"><strong>{formatDollars(products[0].bidCents)}</strong><small>{formatInteger(products[0].totalClicks)} clicks</small></span>
-              <Icon name="external" size={16} />
-            </button>}
-          </div>
-        </section>
-
-        <section className="trending-desktop-rails" aria-label="Trending products ranked by real clicks over seven days">
-          <aside className="trending-side-rail trending-side-rail-left">
-            <div className="trending-rail-label"><span aria-hidden="true">↗</span> Trending right now</div>
-            {trendingRailItems.slice(0, 3).map((product, index) => product
-              ? <TrendingAdCard key={product.id} product={product} index={index} onOpen={() => openProduct(product)} />
-              : <TrendingOpenCard key="open-left" minimumBidCents={data.stats.minimumBidCents} onOpen={openBidModal} />)}
-          </aside>
-          {trendingRailItems.length > 3 && (
-            <aside className="trending-side-rail trending-side-rail-right">
-              <div className="trending-rail-label">Real clicks · 7 days</div>
-              {trendingRailItems.slice(3).map((product, index) => product
-                ? <TrendingAdCard key={product.id} product={product} index={index + 3} onOpen={() => openProduct(product)} />
-                : <TrendingOpenCard key="open-right" minimumBidCents={data.stats.minimumBidCents} onOpen={openBidModal} />)}
-            </aside>
-          )}
-        </section>
-
-        <section className="trending-mobile pulse-card container" aria-label="Trending products ranked by real clicks over seven days">
-          <div className="pulse-heading"><strong><span aria-hidden="true">↗</span> Trending right now</strong><small>real clicks · 7 days</small></div>
-          <div className="trending-ad-list">
-            {trendingRailItems.map((product, index) => product
-              ? <TrendingAdCard key={product.id} product={product} index={index} onOpen={() => openProduct(product)} />
-              : <TrendingOpenCard key="open-mobile" minimumBidCents={data.stats.minimumBidCents} onOpen={openBidModal} />)}
-          </div>
-        </section>
-
-        <section className="market-pulse activity-pulse container" aria-label="Latest leaderboard activity">
-          <article className="pulse-card">
-            <div className="pulse-heading"><strong><span className="live-dot" /> Latest activity</strong><small>confirmed bids &amp; credits</small></div>
-            {data.activity.length ? (
-              <div className="pulse-list">
-                {data.activity.slice(0, 5).map((item) => {
-                  const palette = paletteFor(item.id);
-                  return (
-                    <div className="pulse-row" key={item.id}>
-                      <ProductMark id={item.productId} name={item.productName} hasIcon={item.hasIcon} className="pulse-avatar" style={{ "--pulse-accent": palette[0], "--pulse-soft": palette[1] } as React.CSSProperties} />
-                      <strong>{item.productName}</strong>
-                      <span>{item.fundingSource === "credit" ? `${formatDollars(item.amountCents)} founder credit` : `+${formatDollars(item.amountCents)}`} · {relativeTime(item.happenedAt, data.generatedAt)}</span>
-                    </div>
-                  );
-                })}
+              <div className="market-bid-stepper">
+                <button type="button" aria-label={`Decrease bid by ${formatDollars(BID_INCREMENT_CENTS)}`} onClick={() => changeBidAmount(bidAmount - bidStepDollars)}>−</button>
+                <label><span>$</span><input aria-label="Bid amount in dollars" inputMode="numeric" value={bidAmount} onChange={(event) => changeBidAmount(Number(event.target.value.replace(/\D/g, "")) || Math.ceil(data.stats.minimumBidCents / 100))} /></label>
+                <button type="button" aria-label={`Increase bid by ${formatDollars(BID_INCREMENT_CENTS)}`} onClick={() => changeBidAmount(bidAmount + bidStepDollars)}>+</button>
               </div>
-            ) : <div className="pulse-empty"><span>●</span><p><strong>No bid activity yet</strong>Confirmed bids and credits will appear here.</p></div>}
-          </article>
-        </section>
+            </div>
+            <form className="market-bid-form" onSubmit={(event) => { event.preventDefault(); openBidModal(); }}>
+              <label><Icon name="globe" size={18} /><input value={identity} onChange={(event) => changeIdentity(event.target.value)} onBlur={() => void autofillWebsite(identity)} placeholder="Your product URL or @handle" aria-label="Product URL or handle" /></label>
+              <button type="submit" disabled={bidAmount < thresholdDollars}>{bidAmount >= thresholdDollars ? "Claim this spot" : `Add $${formatInteger(thresholdDollars - bidAmount)}`} <Icon name="arrow" size={16} /></button>
+              <small><span><Icon name="check" size={12} /> One-time payment</span><span><Icon name="shield" size={12} /> Stripe checkout</span><span>Website details autofill</span></small>
+            </form>
+          </div>
 
-        <section className="leaderboard-section container" id="leaderboard" aria-label="Live product leaderboard">
+          <div className="rankings-header">
+            <div><span className="rankings-number">#{formatInteger(data.stats.products)}</span><span><strong>Live leaderboard</strong><small>Products ranked by total confirmed bid</small></span></div>
+            <button onClick={openMarketClaim}>Enter the board from {formatDollars(data.stats.minimumBidCents)} <Icon name="arrow" size={15} /></button>
+          </div>
+
           <div className="leaderboard-toolbar">
             <label className="search-control"><Icon name="search" size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search products, websites, categories…" aria-label="Search products" />{query && <button onClick={() => setQuery("")} aria-label="Clear search"><Icon name="close" size={15} /></button>}</label>
-            <div className="sort-control" aria-label="Sort leaderboard">
-              {(["Rank", "Clicks", "Newest"] as SortMode[]).map((mode) => <button key={mode} className={sortMode === mode ? "active" : ""} onClick={() => setSortMode(mode)}>{mode}</button>)}
-            </div>
+            <div className="sort-control" aria-label="Sort leaderboard">{(["Rank", "Clicks", "Newest"] as SortMode[]).map((mode) => <button key={mode} className={sortMode === mode ? "active" : ""} onClick={() => setSortMode(mode)}>{mode}</button>)}</div>
           </div>
 
           <div className="category-scroll" role="group" aria-label="Filter by category">
@@ -713,59 +854,29 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
               )}
               {data.stats.products > products.length && <div className="load-more">Showing the top {products.length} of {formatInteger(data.stats.products)} products</div>}
             </div>
+            <aside className="market-tape" aria-label="Latest confirmed market activity">
+              <header><span><i /> Market tape</span><small>Latest moves</small></header>
+              {data.activity.length ? <div className="market-tape-list">{data.activity.slice(0, 5).map((item) => {
+                const palette = paletteFor(item.id);
+                return <div className="market-tape-row" key={item.id}>
+                  <ProductMark id={item.productId} name={item.productName} hasIcon={item.hasIcon} className="market-tape-logo" style={{ "--tape-accent": palette[0], "--tape-soft": palette[1] } as React.CSSProperties} />
+                  <span><strong>{item.productName}</strong><small>{relativeTime(item.happenedAt, data.generatedAt)}</small></span>
+                  <span><strong>+{formatDollars(item.amountCents)}</strong><small>{item.fundingSource === "credit" ? "founder credit" : "paid bid"}</small></span>
+                </div>;
+              })}</div> : <div className="market-tape-empty"><strong>No moves yet</strong><span>The first confirmed bid will appear here.</span></div>}
+              <footer><span>Market value</span><strong>{formatDollars(data.stats.confirmedBidCents)}</strong><small>{formatInteger(data.stats.totalClicks)} real clicks delivered</small></footer>
+            </aside>
           </div>
         </section>
 
-        <section className="metrics container" aria-label="OverMCP metrics">
-          <article><span>Live products</span><strong>{formatInteger(data.stats.products)}</strong><small><Icon name="trend" size={13} /> Confirmed placements</small></article>
-          <article><span>Clicks delivered</span><strong>{formatCompact(data.stats.totalClicks)}</strong><small><Icon name="trend" size={13} /> Tracked outbound visits</small></article>
-          <article><span>Visitors online</span><strong>{formatInteger(publicStats.onlineVisitors)}</strong><small><Icon name="users" size={13} /> DataFast realtime</small></article>
-          <article><span>Entry placement</span><strong>{formatDollars(data.stats.minimumBidCents)}</strong><small><Icon name="bolt" size={13} /> No subscription</small></article>
-        </section>
-
-        <section className="builder-cta container" id="builders">
-          <div className="cta-grid" aria-hidden="true" /><div className="cta-orbit orbit-one" aria-hidden="true" /><div className="cta-orbit orbit-two" aria-hidden="true" />
-          <div className="cta-copy"><div className="eyebrow"><span>03</span> Built something worth seeing?</div><h2>Don’t wait to<br /><em>be discovered.</em></h2><p>Join the live leaderboard where visibility is transparent and every outbound visit is measured.</p><button className="button button-dark" onClick={openBidModal}>List your product <Icon name="arrow" /></button></div>
-          <div className="cta-card-stack" aria-hidden="true">
-            {products[1] && <div className="float-card card-back"><span className="float-rank">#{products[1].rank}</span><ProductMark id={products[1].id} name={products[1].name} hasIcon={products[1].hasIcon} className="float-card-logo" style={{ "--float-accent": paletteFor(products[1].id)[0], "--float-soft": paletteFor(products[1].id)[1] } as React.CSSProperties} /><strong>{products[1].name}</strong><small>{formatDollars(products[1].bidCents)} total bid</small></div>}
-            <div className="float-card card-front">
-              <span className="float-rank">#1</span>
-              {products[0]
-                ? <ProductMark id={products[0].id} name={products[0].name} hasIcon={products[0].hasIcon} className="float-card-logo" style={{ "--float-accent": paletteFor(products[0].id)[0], "--float-soft": paletteFor(products[0].id)[1] } as React.CSSProperties} />
-                : <i className="float-card-logo float-card-logo-empty">+</i>}
-              <strong>{products[0]?.name ?? "Position available"}</strong><small>{products[0] ? `${formatInteger(products[0].totalClicks)} tracked visits` : `Starts at ${formatDollars(data.stats.minimumBidCents)}`}</small>
-            </div>
+        <section className="market-rules container" id="how-it-works" aria-labelledby="how-title">
+          <header><div><span>How OverMCP works</span><h2 id="how-title">A public market for product attention.</h2></div><p>Pay once for a position. The board moves only when a confirmed bid changes the order.</p></header>
+          <div className="market-rules-grid">
+            <article><span>01</span><div><strong>Add your product</strong><p>Paste a URL. OverMCP fills the public name, description, and icon for you.</p></div></article>
+            <article><span>02</span><div><strong>Choose a position</strong><p>Bid from {formatDollars(data.stats.minimumBidCents)} and see the exact threshold before Stripe checkout.</p></div></article>
+            <article><span>03</span><div><strong>Measure the visits</strong><p>Your rank, confirmed value, and real outbound clicks stay visible on the board.</p></div></article>
           </div>
-        </section>
-
-        {data.available && <section className="live-proof-section" aria-labelledby="live-proof-title">
-          <div className="live-proof-orbit proof-orbit-one" aria-hidden="true" />
-          <div className="live-proof-orbit proof-orbit-two" aria-hidden="true" />
-          <div className="container live-proof-inner">
-            <div className="live-proof-kicker"><i /> Live production data</div>
-            <h2 id="live-proof-title">This tiny leaderboard now has</h2>
-            <div className="live-proof-value" aria-label={`${formatDollars(data.stats.confirmedBidCents)} in confirmed placement value`}>
-              <span>$</span><strong>{formatDollarAmount(data.stats.confirmedBidCents)}</strong>
-            </div>
-            <p>in confirmed placement value on the board</p>
-            <div className="live-proof-details">
-              <span><strong>{formatDollars(data.stats.paidBidCents)}</strong> paid bids</span>
-              <i aria-hidden="true" />
-              <span><strong>{formatDollars(data.stats.creditBidCents)}</strong> founder credits</span>
-              {data.stats.launchedAt && <><i aria-hidden="true" /><span>live for <strong><time dateTime={data.stats.launchedAt}>{elapsedTime(data.stats.launchedAt, data.generatedAt)}</time></strong></span></>}
-            </div>
-          </div>
-        </section>}
-
-        <section className="how-section" id="how-it-works" aria-labelledby="how-title">
-          <div className="container">
-            <div className="section-heading inverse-heading"><div><div className="eyebrow"><span>04</span> A clearer way to be discovered</div><h2 id="how-title">Simple by design.<br />Transparent by default.</h2></div><p>One clear transaction, measurable results, and a public board that makes every move easy to understand.</p></div>
-            <div className="how-grid">
-              <article><span className="step-number">01</span><div className="step-visual visual-list"><i /><i /><i /></div><h3>List your product</h3><p>Submit any product URL or @handle with the name and description you want visitors to see.</p></article>
-              <article><span className="step-number">02</span><div className="step-visual visual-bid"><span>$</span><strong>{formatDollarAmount(data.stats.minimumBidCents)}</strong><i>+</i></div><h3>Choose your reach</h3><p>Bid for the position you want. Start at {formatDollars(data.stats.minimumBidCents)} and see the current threshold before paying.</p></article>
-              <article><span className="step-number">03</span><div className="step-visual visual-chart"><i /><i /><i /><i /><i /></div><h3>Measure real intent</h3><p>See tracked outbound clicks and the exact position your confirmed bid total earns.</p></article>
-            </div>
-          </div>
+          <footer><div><span>Paid bids</span><strong>{formatDollars(data.stats.paidBidCents)}</strong></div><div><span>Founder credits</span><strong>{formatDollars(data.stats.creditBidCents)}</strong></div><div><span>Products</span><strong>{formatInteger(data.stats.products)}</strong></div><div><span>Tracked clicks</span><strong>{formatInteger(data.stats.totalClicks)}</strong></div><a href="/rules">Read the ranking rules <Icon name="arrow" size={14} /></a></footer>
         </section>
       </main>
 
