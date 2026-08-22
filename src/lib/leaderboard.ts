@@ -25,6 +25,7 @@ export function emptyLeaderboard(
     categories: [],
     marketHistory: [],
     marketMoves: [],
+    rankHistory: [],
     stats: {
       products: 0,
       totalClicks: 0,
@@ -141,6 +142,7 @@ export async function getLeaderboardData(): Promise<LeaderboardPayload> {
         hasIcon: sql<number>`case when ${products.iconDataUrl} is null then 0 else 1 end`.mapWith(Number),
         amountCents: sql<number>`${bids.amountCents} - ${bids.refundedCents}`.mapWith(Number),
         cumulativeCents: sql<number>`sum(${bids.amountCents} - ${bids.refundedCents}) over (order by ${bids.paidAt} asc, ${bids.id} asc)`.mapWith(Number),
+        previousPaidAt: sql<number | null>`lag(${bids.paidAt}) over (partition by ${bids.productId} order by ${bids.paidAt} asc, ${bids.id} asc)`,
         fundingSource: bids.fundingSource,
         happenedAt: bids.paidAt,
       })
@@ -218,6 +220,99 @@ export async function getLeaderboardData(): Promise<LeaderboardPayload> {
       latestBidAt: (row.latestBidAt ?? row.createdAt).toISOString(),
     }));
 
+    const marketMoves = marketMoveRows.flatMap((row) => row.happenedAt ? [{
+      id: row.id,
+      productId: row.productId,
+      productName: row.productName,
+      hasIcon: Boolean(row.hasIcon),
+      amountCents: row.amountCents,
+      cumulativeCents: row.cumulativeCents,
+      fundingSource: row.fundingSource,
+      happenedAt: row.happenedAt.toISOString(),
+    }] : []).reverse();
+
+    type RaceState = {
+      productId: string;
+      productName: string;
+      hasIcon: boolean;
+      bidCents: number;
+      createdAt: number;
+      latestBidAt: number;
+    };
+
+    const raceStates = new Map<string, RaceState>(leaderboardRows.map((row) => [row.id, {
+      productId: row.id,
+      productName: row.name,
+      hasIcon: Boolean(row.hasIcon),
+      bidCents: row.bidCents,
+      createdAt: row.createdAt.getTime(),
+      latestBidAt: (row.latestBidAt ?? row.createdAt).getTime(),
+    }]));
+    const chronologicalRaceRows = [...marketMoveRows].reverse().filter((row) => row.happenedAt);
+    const firstRaceRowByProduct = new Map<string, (typeof chronologicalRaceRows)[number]>();
+
+    for (const row of chronologicalRaceRows) {
+      const state = raceStates.get(row.productId);
+      if (!state) continue;
+      state.bidCents = Math.max(0, state.bidCents - row.amountCents);
+      if (!firstRaceRowByProduct.has(row.productId)) firstRaceRowByProduct.set(row.productId, row);
+    }
+
+    const timestampValue = (value: unknown) => {
+      if (value instanceof Date) return value.getTime();
+      if (typeof value === "bigint") return Number(value);
+      if (typeof value === "number") return value;
+      if (typeof value === "string" && value.trim()) {
+        const numeric = Number(value);
+        return Number.isFinite(numeric) ? numeric : new Date(value).getTime();
+      }
+      return Number.NaN;
+    };
+
+    for (const [productId, row] of firstRaceRowByProduct) {
+      const state = raceStates.get(productId);
+      if (!state) continue;
+      const previousPaidAt = timestampValue(row.previousPaidAt);
+      state.latestBidAt = Number.isFinite(previousPaidAt) ? previousPaidAt : state.createdAt;
+    }
+
+    const rankSnapshot = () => [...raceStates.values()]
+      .filter((product) => product.bidCents > 0)
+      .sort((a, b) => (
+        b.bidCents - a.bidCents
+        || a.latestBidAt - b.latestBidAt
+        || a.createdAt - b.createdAt
+        || a.productId.localeCompare(b.productId)
+      ))
+      .slice(0, 5)
+      .map((product, index) => ({
+        productId: product.productId,
+        productName: product.productName,
+        hasIcon: product.hasIcon,
+        rank: index + 1,
+        bidCents: product.bidCents,
+      }));
+
+    const rankHistory: LeaderboardPayload["rankHistory"] = chronologicalRaceRows.length ? [{
+      id: `baseline-${chronologicalRaceRows[0].id}`,
+      happenedAt: new Date(Math.max(0, chronologicalRaceRows[0].happenedAt!.getTime() - 1)).toISOString(),
+      movedProductId: null,
+      rankings: rankSnapshot(),
+    }] : [];
+
+    for (const row of chronologicalRaceRows) {
+      const state = raceStates.get(row.productId);
+      if (!state || !row.happenedAt) continue;
+      state.bidCents += row.amountCents;
+      state.latestBidAt = row.happenedAt.getTime();
+      rankHistory.push({
+        id: row.id,
+        happenedAt: row.happenedAt.toISOString(),
+        movedProductId: row.productId,
+        rankings: rankSnapshot(),
+      });
+    }
+
     const priceForPosition = (position: number) => {
       const threshold = rankedProducts[position - 1]?.bidCents;
       return threshold ? threshold + BID_INCREMENT_CENTS : MINIMUM_BID_CENTS;
@@ -239,16 +334,8 @@ export async function getLeaderboardData(): Promise<LeaderboardPayload> {
       }] : []),
       categories: categoryRows.map((row) => ({ name: row.name, count: row.count })),
       marketHistory,
-      marketMoves: marketMoveRows.flatMap((row) => row.happenedAt ? [{
-        id: row.id,
-        productId: row.productId,
-        productName: row.productName,
-        hasIcon: Boolean(row.hasIcon),
-        amountCents: row.amountCents,
-        cumulativeCents: row.cumulativeCents,
-        fundingSource: row.fundingSource,
-        happenedAt: row.happenedAt.toISOString(),
-      }] : []).reverse(),
+      marketMoves,
+      rankHistory,
       stats: {
         products: productCountRows[0]?.value ?? 0,
         totalClicks: clickCountRows[0]?.value ?? 0,

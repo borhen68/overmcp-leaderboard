@@ -50,6 +50,21 @@ export type MarketMove = {
   happenedAt: string;
 };
 
+export type RankRaceEntry = {
+  productId: string;
+  productName: string;
+  hasIcon: boolean;
+  rank: number;
+  bidCents: number;
+};
+
+export type RankRacePoint = {
+  id: string;
+  happenedAt: string;
+  movedProductId: string | null;
+  rankings: RankRaceEntry[];
+};
+
 export type LeaderboardPayload = {
   configured: boolean;
   available: boolean;
@@ -59,6 +74,7 @@ export type LeaderboardPayload = {
   categories: CategoryCount[];
   marketHistory: MarketDay[];
   marketMoves: MarketMove[];
+  rankHistory: RankRacePoint[];
   stats: {
     products: number;
     totalClicks: number;

@@ -9,10 +9,11 @@ import {
   useState,
 } from "react";
 import { BID_INCREMENT_CENTS, PRODUCT_CATEGORIES } from "@/lib/constants";
-import type { LeaderboardPayload, LeaderboardProduct, MarketDay, MarketMove } from "@/lib/types";
+import type { LeaderboardPayload, LeaderboardProduct, MarketDay, MarketMove, RankRacePoint } from "@/lib/types";
 
 type SortMode = "Rank" | "Clicks" | "Newest";
 type MarketRange = "7D" | "30D" | "ALL";
+type MarketView = "value" | "race";
 type AutofillStatus = "idle" | "loading" | "success" | "error";
 
 type WebsiteMetadataResult = {
@@ -200,9 +201,20 @@ function marketLinePath(points: Array<{ x: number; y: number }>) {
   return points.slice(1).reduce((path, point) => `${path} H ${point.x} V ${point.y}`, `M ${points[0].x} ${points[0].y}`);
 }
 
+function rankRaceLinePath(points: Array<{ x: number; y: number }>) {
+  if (!points.length) return "";
+  return points.slice(1).reduce((path, point, index) => {
+    const previous = points[index];
+    const midpoint = previous.x + (point.x - previous.x) * .5;
+    return `${path} C ${midpoint} ${previous.y}, ${midpoint} ${point.y}, ${point.x} ${point.y}`;
+  }, `M ${points[0].x} ${points[0].y}`);
+}
+
 function MarketChart({
   history,
   moves,
+  rankHistory,
+  products,
   stats,
   generatedAt,
   entryRank,
@@ -213,6 +225,8 @@ function MarketChart({
 }: {
   history: MarketDay[];
   moves: MarketMove[];
+  rankHistory: RankRacePoint[];
+  products: LeaderboardProduct[];
   stats: LeaderboardPayload["stats"];
   generatedAt: string;
   entryRank: 1 | 2 | 3 | 10;
@@ -221,6 +235,7 @@ function MarketChart({
   totalVisitors: number;
   onClaim: () => void;
 }) {
+  const [view, setView] = useState<MarketView>("value");
   const [range, setRange] = useState<MarketRange>("ALL");
   const [chartWidth, setChartWidth] = useState(900);
   const chartFrame = useRef<HTMLDivElement>(null);
@@ -275,17 +290,59 @@ function MarketChart({
   const entryLabel = entryRank === 1 ? "#1" : `Top ${entryRank}`;
   const axisTickCount = compact ? 4 : 6;
   const axisTicks = Array.from({ length: axisTickCount }, (_, index) => rangeStart + ((now - rangeStart) * index) / (axisTickCount - 1));
+  const raceRankCount = compact ? 3 : 5;
+  const raceMargin = { top: 32, right: compact ? 42 : 188, bottom: 41, left: compact ? 42 : 54 };
+  const racePlotBottom = height - raceMargin.bottom;
+  const racePlotWidth = chartWidth - raceMargin.left - raceMargin.right;
+  const racePlotHeight = racePlotBottom - raceMargin.top;
+  const raceXForTime = (timestamp: number) => raceMargin.left + ((timestamp - rangeStart) / Math.max(1, now - rangeStart)) * racePlotWidth;
+  const raceYForRank = (rank: number) => raceMargin.top + ((rank - 1) / Math.max(1, raceRankCount - 1)) * racePlotHeight;
+  const racePointsInRange = rankHistory.filter((point) => {
+    const timestamp = new Date(point.happenedAt).getTime();
+    return timestamp > rangeStart && timestamp <= now;
+  });
+  const racePointBeforeRange = [...rankHistory].reverse().find((point) => new Date(point.happenedAt).getTime() <= rangeStart);
+  const latestRacePoint = [...rankHistory].reverse().find((point) => new Date(point.happenedAt).getTime() <= now);
+  const raceTimeline = [
+    ...(racePointBeforeRange ? [{ ...racePointBeforeRange, id: `range-start-${racePointBeforeRange.id}`, happenedAt: new Date(rangeStart).toISOString(), movedProductId: null }] : []),
+    ...racePointsInRange,
+    ...(latestRacePoint ? [{ ...latestRacePoint, id: `range-end-${latestRacePoint.id}`, happenedAt: new Date(now).toISOString(), movedProductId: null }] : []),
+  ];
+  const raceProducts = (latestRacePoint?.rankings ?? [])
+    .filter((product) => product.rank <= raceRankCount)
+    .sort((a, b) => a.rank - b.rank);
+  const raceColors = ["#c2e978", "#ff7560", "#72d5a2", "#98a5ff", "#f5a7dd"];
+  const raceLines = raceProducts.map((product, index) => {
+    const points = raceTimeline.map((point) => {
+      const entry = point.rankings.find((ranking) => ranking.productId === product.productId);
+      const rank = entry && entry.rank <= raceRankCount ? entry.rank : raceRankCount + .65;
+      return {
+        x: raceXForTime(new Date(point.happenedAt).getTime()),
+        y: raceYForRank(rank),
+        rank,
+        eventId: point.id,
+        moved: point.movedProductId === product.productId,
+      };
+    });
+    return { product, color: raceColors[index % raceColors.length], points, path: rankRaceLinePath(points) };
+  });
+  const leader = products[0];
+  const raceAxisTicks = Array.from({ length: axisTickCount }, (_, index) => rangeStart + ((now - rangeStart) * index) / (axisTickCount - 1));
 
   return (
     <article className="market-chart-card">
       <header className="market-chart-topbar">
         <div className="market-chart-identity">
           <span className="market-chart-logo"><img src="/icon.svg" alt="" /></span>
-          <div><strong>OverMCP Market Pulse</strong><small>Every rise comes from a real confirmed move</small></div>
+          <div><strong>OverMCP Market Pulse</strong><small>{view === "value" ? "Confirmed value over time" : "Watch products fight for position"}</small></div>
           <span className="market-live-badge"><i /> LIVE</span>
           <a className="market-chart-audience" href={DATAFAST_SHARE_URL} target="_blank" rel="noopener noreferrer"><i /> {formatInteger(onlineVisitors)} online <span>·</span> {formatInteger(totalVisitors)} visitors <b>↗</b></a>
         </div>
         <div className="market-chart-controls">
+          <div className="view-switch" role="group" aria-label="Chart type">
+            <button className={view === "value" ? "active" : ""} onClick={() => setView("value")} aria-pressed={view === "value"}>Market Value</button>
+            <button className={view === "race" ? "active" : ""} onClick={() => setView("race")} aria-pressed={view === "race"}>Rank Race</button>
+          </div>
           <div className="market-range" role="group" aria-label="Chart date range">
             {(["7D", "30D", "ALL"] as MarketRange[]).map((option) => (
               <button key={option} className={range === option ? "active" : ""} onClick={() => setRange(option)} aria-pressed={range === option}>{option}</button>
@@ -295,32 +352,49 @@ function MarketChart({
         </div>
       </header>
 
-      <div className="market-chart-summary">
-        <div className="market-chart-quote">
-          <span>Total confirmed value</span>
-          <strong>{formatDollars(currentValue)}</strong>
-          <small className={change24Hours > 0 ? "is-up" : change24Hours < 0 ? "is-down" : ""}>
-            <Icon name="trend" size={14} />
-            {change24Hours === 0
-              ? "No change in the last 24 hours"
-              : `${change24Hours > 0 ? "+" : "−"}${formatDollars(Math.abs(change24Hours))}${percentageChange === null ? "" : ` (${change24Hours > 0 ? "+" : "−"}${Math.abs(percentageChange).toFixed(1)}%)`} vs last 24 hours`}
-          </small>
+      {view === "value" ? (
+        <div className="market-chart-summary">
+          <div className="market-chart-quote">
+            <span>Total confirmed value</span>
+            <strong>{formatDollars(currentValue)}</strong>
+            <small className={change24Hours > 0 ? "is-up" : change24Hours < 0 ? "is-down" : ""}>
+              <Icon name="trend" size={14} />
+              {change24Hours === 0
+                ? "No change in the last 24 hours"
+                : `${change24Hours > 0 ? "+" : "−"}${formatDollars(Math.abs(change24Hours))}${percentageChange === null ? "" : ` (${change24Hours > 0 ? "+" : "−"}${Math.abs(percentageChange).toFixed(1)}%)`} vs last 24 hours`}
+            </small>
+          </div>
+          <div className="market-chart-stats">
+            <div><span>Added ({range.toLowerCase()})</span><strong>+{formatDollars(rangeVolume)}</strong></div>
+            <div><span>Value change</span><strong>+{formatDollars(Math.max(0, rangeChange))}</strong></div>
+            <div><span>Confirmed moves</span><strong>{formatInteger(rangeBids)}</strong></div>
+            <div><span>Clicks delivered</span><strong>{formatInteger(stats.totalClicks)}</strong></div>
+          </div>
         </div>
-        <div className="market-chart-stats">
-          <div><span>Added ({range.toLowerCase()})</span><strong>+{formatDollars(rangeVolume)}</strong></div>
-          <div><span>Value change</span><strong>+{formatDollars(Math.max(0, rangeChange))}</strong></div>
-          <div><span>Confirmed moves</span><strong>{formatInteger(rangeBids)}</strong></div>
-          <div><span>Clicks delivered</span><strong>{formatInteger(stats.totalClicks)}</strong></div>
+      ) : (
+        <div className="market-chart-summary market-race-summary">
+          <div className="market-chart-quote">
+            <span>Current leader</span>
+            <strong>{leader?.name ?? "Race not started"}</strong>
+            <small><Icon name="trend" size={14} />{leader ? `#1 with ${formatDollars(leader.bidCents)} confirmed` : "The first confirmed bid opens the race"}</small>
+          </div>
+          <div className="market-chart-stats">
+            <div><span>Products racing</span><strong>{formatInteger(products.length)}</strong></div>
+            <div><span>Positions shown</span><strong>Top {raceRankCount}</strong></div>
+            <div><span>Confirmed moves</span><strong>{formatInteger(rangeBids)}</strong></div>
+            <div><span>Entry starts at</span><strong>{formatDollars(stats.minimumBidCents)}</strong></div>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="market-chart-frame" ref={chartFrame}>
-        <svg
-          className="market-chart-svg"
-          viewBox={`0 0 ${chartWidth} ${height}`}
-          role="img"
-          aria-label={`Timeline of OverMCP confirmed placement value over ${range.toLowerCase()}`}
-        >
+        {view === "value" ? (
+          <svg
+            className="market-chart-svg"
+            viewBox={`0 0 ${chartWidth} ${height}`}
+            role="img"
+            aria-label={`Timeline of OverMCP confirmed placement value over ${range.toLowerCase()}`}
+          >
           <title>OverMCP confirmed placement value — real bid history only</title>
           <defs>
             <linearGradient id="marketArea" x1="0" x2="0" y1="0" y2="1">
@@ -378,11 +452,72 @@ function MarketChart({
             <circle r="8" />
             <circle r="3.5" />
           </g>
-        </svg>
-        {!moves.length && <div className="market-chart-empty"><strong>The market opens with the first confirmed bid.</strong><span>No movement is simulated.</span></div>}
+          </svg>
+        ) : (
+          <svg
+            className="market-chart-svg rank-race-svg"
+            viewBox={`0 0 ${chartWidth} ${height}`}
+            role="img"
+            aria-label={`Rank race for the top ${raceRankCount} products over ${range.toLowerCase()}`}
+          >
+            <title>OverMCP product rank race — confirmed bids only</title>
+            <defs>
+              <clipPath id="rankRacePlot"><rect x={raceMargin.left} y={raceMargin.top - 18} width={racePlotWidth} height={racePlotHeight + 36} /></clipPath>
+            </defs>
+            {Array.from({ length: raceRankCount }, (_, index) => {
+              const rank = index + 1;
+              const y = raceYForRank(rank);
+              return (
+                <g className={`rank-race-grid${rank === 1 ? " is-leader" : ""}`} key={rank}>
+                  <line x1={raceMargin.left} x2={chartWidth - raceMargin.right} y1={y} y2={y} />
+                  <text x={raceMargin.left - 10} y={y + 4} textAnchor="end">#{rank}</text>
+                </g>
+              );
+            })}
+            {raceAxisTicks.map((timestamp) => {
+              const x = raceXForTime(timestamp);
+              return (
+                <text className="market-date-label" x={x} y={height - 17} textAnchor={x < raceMargin.left + 5 ? "start" : x > chartWidth - raceMargin.right - 5 ? "end" : "middle"} key={timestamp}>{dayLabel(utcDayKey(timestamp), range === "ALL")}</text>
+              );
+            })}
+            <g clipPath="url(#rankRacePlot)">
+              {raceLines.map((line) => (
+                <g className="rank-race-series" key={line.product.productId}>
+                  <path className="rank-race-line-glow" d={line.path} style={{ stroke: line.color }} />
+                  <path className="rank-race-line" d={line.path} style={{ stroke: line.color }} />
+                  {line.points.filter((point) => point.moved && point.rank <= raceRankCount).map((point) => (
+                    <circle className="rank-race-event" cx={point.x} cy={point.y} r="4" style={{ fill: line.color }} key={point.eventId} />
+                  ))}
+                </g>
+              ))}
+            </g>
+            {raceLines.map((line) => {
+              const endpoint = line.points[line.points.length - 1];
+              if (!endpoint || endpoint.rank > raceRankCount) return null;
+              const shortName = line.product.productName.length > 18 ? `${line.product.productName.slice(0, 17)}…` : line.product.productName;
+              return (
+                <g className="rank-race-endpoint" transform={`translate(${endpoint.x} ${endpoint.y})`} key={line.product.productId}>
+                  <title>{`${line.product.productName}: rank ${line.product.rank}, ${formatDollars(line.product.bidCents)} confirmed`}</title>
+                  <circle className="rank-race-endpoint-halo" r="20" style={{ fill: line.color }} />
+                  <circle className="rank-race-endpoint-disc" r="16" />
+                  {line.product.hasIcon
+                    ? <image className="rank-race-icon" href={`/api/product-icon/${line.product.productId}`} x="-13" y="-13" width="26" height="26" />
+                    : <text className="rank-race-fallback" y="4" textAnchor="middle">{line.product.productName.slice(0, 1).toUpperCase()}</text>}
+                  {!compact && <>
+                    <text className="rank-race-name" x="27" y="-2">{shortName}</text>
+                    <text className="rank-race-meta" x="27" y="13">#{line.product.rank} · {formatDollars(line.product.bidCents)}</text>
+                  </>}
+                </g>
+              );
+            })}
+          </svg>
+        )}
+        {view === "value" && !moves.length && <div className="market-chart-empty"><strong>The market opens with the first confirmed bid.</strong><span>No movement is simulated.</span></div>}
+        {view === "race" && !raceProducts.length && <div className="market-chart-empty"><strong>The rank race opens with the first confirmed bid.</strong><span>No positions are simulated.</span></div>}
+        {view === "race" && raceProducts.length === 1 && <div className="rank-race-notice"><i /> One product holds the track. The next confirmed bid starts the chase.</div>}
       </div>
 
-      <footer className="market-chart-footnote"><strong>How to read it</strong><span>The line rises only when confirmed value is added.</span><span>Product logos identify who made each move.</span><small>Stripe payments + disclosed founder credits · no simulated data</small></footer>
+      <footer className="market-chart-footnote"><strong>How to read it</strong>{view === "value" ? <><span>The line rises only when confirmed value is added.</span><span>Product logos identify who made each move.</span></> : <><span>Lines move when confirmed bids change the order.</span><span>Lower rank numbers are better.</span></>}<small>Stripe payments + disclosed founder credits · no simulated data</small></footer>
     </article>
   );
 }
@@ -776,6 +911,8 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
             <MarketChart
               history={data.marketHistory}
               moves={data.marketMoves}
+              rankHistory={data.rankHistory ?? []}
+              products={data.products}
               stats={data.stats}
               generatedAt={data.generatedAt}
               entryRank={marketEntryRank}
