@@ -157,6 +157,36 @@ function ProductMark({
   );
 }
 
+function TrendingAdCard({ product, index, onOpen }: { product: LeaderboardProduct; index: number; onOpen: () => void }) {
+  const palette = paletteFor(product.id);
+  return (
+    <button
+      className="trending-ad-card"
+      onClick={onOpen}
+      style={{ "--trending-accent": palette[0], "--trending-background": palette[1] } as React.CSSProperties}
+      aria-label={`Visit ${product.name}, trending number ${index + 1} with ${formatInteger(product.weeklyClicks)} clicks this week`}
+    >
+      <span className="trending-ad-topline"><strong>Trending #{index + 1}</strong><span>{formatCompact(product.weeklyClicks)} clicks</span></span>
+      <ProductMark id={product.id} name={product.name} hasIcon={product.hasIcon} className="trending-ad-logo" />
+      <strong className="trending-ad-name">{product.name}</strong>
+      <span className="trending-ad-description">{product.description}</span>
+      <span className="trending-ad-action">Visit product <Icon name="external" size={14} /></span>
+    </button>
+  );
+}
+
+function TrendingOpenCard({ minimumBidCents, onOpen }: { minimumBidCents: number; onOpen: () => void }) {
+  return (
+    <button className="trending-ad-card trending-open-card" onClick={onOpen} aria-label={`List your product from ${formatDollars(minimumBidCents)}`}>
+      <span className="trending-ad-topline"><strong>Open listing</strong><span>Available</span></span>
+      <span className="trending-ad-logo trending-open-logo">+</span>
+      <strong className="trending-ad-name">Your product could trend here</strong>
+      <span className="trending-ad-description">Join the board, earn real clicks, and qualify through actual seven-day traffic.</span>
+      <span className="trending-ad-action">List from {formatDollars(minimumBidCents)} <Icon name="arrow" size={14} /></span>
+    </button>
+  );
+}
+
 function getVisitorId() {
   const storageKey = "overmcp-visitor-id";
   const current = window.localStorage.getItem(storageKey);
@@ -214,6 +244,11 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
       .slice(0, 5),
     [products],
   );
+  const trendingRailItems = useMemo(() => {
+    const items: Array<LeaderboardProduct | null> = [...trendingProducts];
+    if (items.length < 5) items.push(null);
+    return items;
+  }, [trendingProducts]);
 
   useEffect(() => {
     try {
@@ -580,26 +615,33 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
           </div>
         </section>
 
-        <section className="market-pulse container" aria-label="Live leaderboard signals">
-          <article className="pulse-card">
-            <div className="pulse-heading"><strong><span aria-hidden="true">↗</span> Trending right now</strong><small>real clicks · 7 days</small></div>
-            {trendingProducts.length ? (
-              <div className="pulse-list">
-                {trendingProducts.map((product, index) => {
-                  const palette = paletteFor(product.id);
-                  return (
-                    <button className="pulse-row" key={product.id} onClick={() => openProduct(product)}>
-                      <span className="pulse-rank">{index + 1}</span>
-                      <ProductMark id={product.id} name={product.name} hasIcon={product.hasIcon} className="pulse-avatar" style={{ "--pulse-accent": palette[0], "--pulse-soft": palette[1] } as React.CSSProperties} />
-                      <strong>{product.name}</strong>
-                      <span>{formatCompact(product.weeklyClicks)} clicks</span>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : <div className="pulse-empty"><span>↗</span><p><strong>No trend yet</strong>Tracked visits will rank products here.</p></div>}
-          </article>
+        <section className="trending-desktop-rails" aria-label="Trending products ranked by real clicks over seven days">
+          <aside className="trending-side-rail trending-side-rail-left">
+            <div className="trending-rail-label"><span aria-hidden="true">↗</span> Trending right now</div>
+            {trendingRailItems.slice(0, 3).map((product, index) => product
+              ? <TrendingAdCard key={product.id} product={product} index={index} onOpen={() => openProduct(product)} />
+              : <TrendingOpenCard key="open-left" minimumBidCents={data.stats.minimumBidCents} onOpen={openBidModal} />)}
+          </aside>
+          {trendingRailItems.length > 3 && (
+            <aside className="trending-side-rail trending-side-rail-right">
+              <div className="trending-rail-label">Real clicks · 7 days</div>
+              {trendingRailItems.slice(3).map((product, index) => product
+                ? <TrendingAdCard key={product.id} product={product} index={index + 3} onOpen={() => openProduct(product)} />
+                : <TrendingOpenCard key="open-right" minimumBidCents={data.stats.minimumBidCents} onOpen={openBidModal} />)}
+            </aside>
+          )}
+        </section>
 
+        <section className="trending-mobile pulse-card container" aria-label="Trending products ranked by real clicks over seven days">
+          <div className="pulse-heading"><strong><span aria-hidden="true">↗</span> Trending right now</strong><small>real clicks · 7 days</small></div>
+          <div className="trending-ad-list">
+            {trendingRailItems.map((product, index) => product
+              ? <TrendingAdCard key={product.id} product={product} index={index} onOpen={() => openProduct(product)} />
+              : <TrendingOpenCard key="open-mobile" minimumBidCents={data.stats.minimumBidCents} onOpen={openBidModal} />)}
+          </div>
+        </section>
+
+        <section className="market-pulse activity-pulse container" aria-label="Latest leaderboard activity">
           <article className="pulse-card">
             <div className="pulse-heading"><strong><span className="live-dot" /> Latest activity</strong><small>confirmed bids &amp; credits</small></div>
             {data.activity.length ? (
@@ -619,12 +661,7 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
           </article>
         </section>
 
-        <section className="leaderboard-section container" id="leaderboard" aria-labelledby="leaderboard-title">
-          <div className="section-heading">
-            <div><div className="eyebrow"><span>02</span> Discover what’s winning</div><h2 id="leaderboard-title">The board, live.</h2></div>
-            <p>Every rank is powered by a public bid. Clicks and movement show what people actually care about.</p>
-          </div>
-
+        <section className="leaderboard-section container" id="leaderboard" aria-label="Live product leaderboard">
           <div className="leaderboard-toolbar">
             <label className="search-control"><Icon name="search" size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search products, websites, categories…" aria-label="Search products" />{query && <button onClick={() => setQuery("")} aria-label="Clear search"><Icon name="close" size={15} /></button>}</label>
             <div className="sort-control" aria-label="Sort leaderboard">
@@ -686,20 +723,9 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
           <article><span>Entry placement</span><strong>{formatDollars(data.stats.minimumBidCents)}</strong><small><Icon name="bolt" size={13} /> No subscription</small></article>
         </section>
 
-        <section className="how-section" id="how-it-works" aria-labelledby="how-title">
-          <div className="container">
-            <div className="section-heading inverse-heading"><div><div className="eyebrow"><span>03</span> A clearer way to be discovered</div><h2 id="how-title">Simple by design.<br />Transparent by default.</h2></div><p>One clear transaction, measurable results, and a public board that makes every move easy to understand.</p></div>
-            <div className="how-grid">
-              <article><span className="step-number">01</span><div className="step-visual visual-list"><i /><i /><i /></div><h3>List your product</h3><p>Submit any product URL or @handle with the name and description you want visitors to see.</p></article>
-              <article><span className="step-number">02</span><div className="step-visual visual-bid"><span>$</span><strong>{formatDollarAmount(data.stats.minimumBidCents)}</strong><i>+</i></div><h3>Choose your reach</h3><p>Bid for the position you want. Start at {formatDollars(data.stats.minimumBidCents)} and see the current threshold before paying.</p></article>
-              <article><span className="step-number">03</span><div className="step-visual visual-chart"><i /><i /><i /><i /><i /></div><h3>Measure real intent</h3><p>See tracked outbound clicks and the exact position your confirmed bid total earns.</p></article>
-            </div>
-          </div>
-        </section>
-
         <section className="builder-cta container" id="builders">
           <div className="cta-grid" aria-hidden="true" /><div className="cta-orbit orbit-one" aria-hidden="true" /><div className="cta-orbit orbit-two" aria-hidden="true" />
-          <div className="cta-copy"><div className="eyebrow"><span>04</span> Built something worth seeing?</div><h2>Don’t wait to<br /><em>be discovered.</em></h2><p>Join the live leaderboard where visibility is transparent and every outbound visit is measured.</p><button className="button button-dark" onClick={openBidModal}>List your product <Icon name="arrow" /></button></div>
+          <div className="cta-copy"><div className="eyebrow"><span>03</span> Built something worth seeing?</div><h2>Don’t wait to<br /><em>be discovered.</em></h2><p>Join the live leaderboard where visibility is transparent and every outbound visit is measured.</p><button className="button button-dark" onClick={openBidModal}>List your product <Icon name="arrow" /></button></div>
           <div className="cta-card-stack" aria-hidden="true">
             {products[1] && <div className="float-card card-back"><span className="float-rank">#{products[1].rank}</span><ProductMark id={products[1].id} name={products[1].name} hasIcon={products[1].hasIcon} className="float-card-logo" style={{ "--float-accent": paletteFor(products[1].id)[0], "--float-soft": paletteFor(products[1].id)[1] } as React.CSSProperties} /><strong>{products[1].name}</strong><small>{formatDollars(products[1].bidCents)} total bid</small></div>}
             <div className="float-card card-front">
@@ -730,6 +756,17 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
             </div>
           </div>
         </section>}
+
+        <section className="how-section" id="how-it-works" aria-labelledby="how-title">
+          <div className="container">
+            <div className="section-heading inverse-heading"><div><div className="eyebrow"><span>04</span> A clearer way to be discovered</div><h2 id="how-title">Simple by design.<br />Transparent by default.</h2></div><p>One clear transaction, measurable results, and a public board that makes every move easy to understand.</p></div>
+            <div className="how-grid">
+              <article><span className="step-number">01</span><div className="step-visual visual-list"><i /><i /><i /></div><h3>List your product</h3><p>Submit any product URL or @handle with the name and description you want visitors to see.</p></article>
+              <article><span className="step-number">02</span><div className="step-visual visual-bid"><span>$</span><strong>{formatDollarAmount(data.stats.minimumBidCents)}</strong><i>+</i></div><h3>Choose your reach</h3><p>Bid for the position you want. Start at {formatDollars(data.stats.minimumBidCents)} and see the current threshold before paying.</p></article>
+              <article><span className="step-number">03</span><div className="step-visual visual-chart"><i /><i /><i /><i /><i /></div><h3>Measure real intent</h3><p>See tracked outbound clicks and the exact position your confirmed bid total earns.</p></article>
+            </div>
+          </div>
+        </section>
       </main>
 
       <footer className="site-footer">
