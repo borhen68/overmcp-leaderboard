@@ -73,13 +73,13 @@ export function Logo() {
   return (
     <a className="brand" href="/" aria-label="OverMCP home">
       <span className="brand-glyph" aria-hidden="true">
-        <svg viewBox="0 0 32 32" role="presentation">
-          <rect className="brand-glyph-bg" x="2" y="2" width="28" height="28" rx="9" />
-          <path className="brand-glyph-line" d="m7.5 21 5.2-5.1 4.1 3.4L24.5 11" />
-          <path className="brand-glyph-line" d="M19.7 11h4.8v4.8" />
+        <svg viewBox="0 0 64 64" role="presentation">
+          <rect width="64" height="64" rx="17" />
+          <circle cx="27" cy="37" r="16" />
+          <path d="M35 29 51 13M40 13h11v11" />
         </svg>
       </span>
-      <span className="brand-wordmark" aria-hidden="true">over<span>mcp</span></span>
+      <span className="brand-wordmark" aria-hidden="true">ver<span>mcp</span></span>
     </a>
   );
 }

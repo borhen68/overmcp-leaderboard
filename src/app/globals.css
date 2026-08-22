@@ -131,14 +131,18 @@
     overflow: visible;
   }
 
-  .brand-glyph .brand-glyph-bg {
-    fill: var(--ink);
+  .brand-glyph rect { fill: var(--lime); }
+
+  .brand-glyph circle {
+    fill: none;
+    stroke: var(--ink);
+    stroke-width: 9;
   }
 
-  .brand-glyph .brand-glyph-line {
+  .brand-glyph path {
     fill: none;
-    stroke: var(--lime);
-    stroke-width: 2.7;
+    stroke: var(--orange);
+    stroke-width: 7;
     stroke-linecap: round;
     stroke-linejoin: round;
   }
