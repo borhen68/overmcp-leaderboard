@@ -297,6 +297,32 @@ function MarketChart({
   ];
   const linePath = marketLinePath(linePoints);
   const areaPath = `${linePath} L ${chartWidth - margin.right} ${plotBottom} L ${margin.left} ${plotBottom} Z`;
+  const moveLabelWidth = 148;
+  const moveLabelHeight = 48;
+  const moveLabelLayouts = new Map<string, { x: number; y: number }>();
+  if (!compact) {
+    const labelGap = 8;
+    const minLabelY = margin.top + 5;
+    const maxLabelY = plotBottom - moveLabelHeight - 5;
+    const labels = visibleMoves.slice(-4).map((move) => {
+      const x = xForTime(new Date(move.happenedAt).getTime());
+      const y = valueY(move.cumulativeCents);
+      return {
+        id: move.id,
+        x: x > chartWidth - moveLabelWidth - 58 ? x - moveLabelWidth - 24 : x + 24,
+        markerY: y,
+        y: Math.max(minLabelY, Math.min(maxLabelY, y - moveLabelHeight / 2)),
+      };
+    }).sort((a, b) => a.markerY - b.markerY);
+
+    let nextLabelY = minLabelY;
+    labels.forEach((label) => {
+      label.y = Math.max(label.y, nextLabelY);
+      nextLabelY = label.y + moveLabelHeight + labelGap;
+    });
+    const overflow = labels.length ? Math.max(0, labels[labels.length - 1].y - maxLabelY) : 0;
+    labels.forEach((label) => moveLabelLayouts.set(label.id, { x: label.x, y: label.y - overflow }));
+  }
   const currentValue = stats.confirmedBidCents;
   const change24Hours = currentValue - stats.confirmedBidCents24HoursAgo;
   const percentageChange = stats.confirmedBidCents24HoursAgo > 0
@@ -455,34 +481,32 @@ function MarketChart({
           <path className="market-value-line" d={linePath} />
           <line className="market-value-baseline" x1={margin.left} x2={chartWidth - margin.right} y1={plotBottom} y2={plotBottom} />
 
-          {visibleMoves.map((move, index) => {
+          {visibleMoves.map((move) => {
             const x = xForTime(new Date(move.happenedAt).getTime());
             const y = valueY(move.cumulativeCents);
-            const labelWidth = 148;
-            const labelX = x > chartWidth - 190 ? x - labelWidth - 24 : x + 24;
-            const labelY = y < margin.top + 65 ? y + 25 : y - 57;
-            const showLabel = visibleMoves.length <= 4 || index >= visibleMoves.length - 3;
-            const shortName = move.productName.length > 20 ? `${move.productName.slice(0, 19)}…` : move.productName;
+            const labelLayout = moveLabelLayouts.get(move.id);
+            const labelX = labelLayout?.x ?? x;
+            const labelY = labelLayout?.y ?? y;
+            const showLabel = Boolean(labelLayout);
+            const conciseName = conciseProductName(move.productName);
+            const shortName = conciseName.length > 20 ? `${conciseName.slice(0, 19)}…` : conciseName;
             return (
               <g className={`market-move-marker${showLabel ? " is-featured" : ""}`} key={move.id}>
                 <line className="market-move-guide" x1={x} x2={x} y1={y + 20} y2={plotBottom} />
+                {showLabel && <line className="market-move-label-connector" x1={x} y1={y} x2={labelX > x ? labelX : labelX + moveLabelWidth} y2={labelY + moveLabelHeight / 2} />}
                 <circle className="market-move-halo" cx={x} cy={y} r={20} />
                 <circle className="market-move-disc" cx={x} cy={y} r={16} />
                 {move.hasIcon
                   ? <image className="market-move-icon" href={`/api/product-icon/${move.productId}`} x={x - 13} y={y - 13} width="26" height="26" />
                   : <text className="market-move-fallback" x={x} y={y + 4} textAnchor="middle">{move.productName.slice(0, 1).toUpperCase()}</text>}
                 <g className="market-move-label" transform={`translate(${labelX} ${labelY})`}>
-                  <rect width={labelWidth} height="48" rx="9" />
+                  <rect width={moveLabelWidth} height={moveLabelHeight} rx="9" />
                   <text x="10" y="17" className="market-move-name">{shortName}</text>
                   <text x="10" y="34" className="market-move-meta">+{formatDollars(move.amountCents)} · {move.fundingSource === "credit" ? "founder credit" : "paid bid"}</text>
                 </g>
               </g>
             );
           })}
-          <g className="market-current-point" transform={`translate(${chartWidth - margin.right} ${valueY(currentValue)})`}>
-            <circle r="8" />
-            <circle r="3.5" />
-          </g>
           </svg>
         ) : (
           <svg
@@ -527,6 +551,20 @@ function MarketChart({
               ))}
             </g>
             {raceLines.map((line) => {
+              const firstSegment = line.segments[0];
+              const entry = firstSegment?.points[0];
+              if (!entry || !entry.moved || entry.x <= raceMargin.left + 2) return null;
+              return (
+                <g className="rank-race-entry" transform={`translate(${entry.x} ${entry.y})`} key={`entry-${line.product.productId}`}>
+                  <circle r="5" style={{ fill: line.color }} />
+                  {!compact && <>
+                    <rect x="-7" y="-29" width="77" height="19" rx="6" />
+                    <text x="2" y="-16">JOINED #{entry.rank}</text>
+                  </>}
+                </g>
+              );
+            })}
+            {raceLines.map((line) => {
               const finalSegment = line.segments[line.segments.length - 1];
               const endpoint = finalSegment?.points[finalSegment.points.length - 1];
               if (!endpoint || endpoint.rank > raceRankCount) return null;
@@ -553,7 +591,7 @@ function MarketChart({
         {view === "race" && raceProducts.length === 1 && <div className="rank-race-notice"><i /> One product holds the track. The next confirmed bid starts the chase.</div>}
       </div>
 
-      <footer className="market-chart-footnote"><strong>How to read it</strong>{view === "value" ? <><span>The line rises only when confirmed value is added.</span><span>Product logos identify who made each move.</span></> : <><span>Lines move when confirmed bids change the order.</span><span>Lower rank numbers are better.</span></>}<small>Stripe payments + disclosed founder credits · no simulated data</small></footer>
+      <footer className="market-chart-footnote"><strong>How to read it</strong>{view === "value" ? <><span>The line rises only when confirmed value is added.</span><span>Product logos identify who made each move.</span></> : <><span>A line begins when a product enters.</span><span>It moves only when confirmed bids change the order.</span></>}<small>Stripe payments + disclosed founder credits · no simulated data</small></footer>
     </article>
   );
 }
