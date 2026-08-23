@@ -310,8 +310,8 @@ function MarketChart({
   const entryLabel = entryRank === 1 ? "#1" : `Top ${entryRank}`;
   const axisTickCount = compact ? 4 : 6;
   const axisTicks = chartTimeTicks(rangeStart, now, axisTickCount);
-  const raceRankCount = compact ? 3 : 5;
-  const raceMargin = { top: compact ? 37 : 32, right: compact ? 37 : 188, bottom: compact ? 66 : 41, left: compact ? 43 : 54 };
+  const raceRankCount = Math.max(1, Math.min(compact ? 3 : 5, products.length || 1));
+  const raceMargin = { top: compact ? 37 : 32, right: compact ? 37 : 188, bottom: raceRankCount <= 3 ? (compact ? 66 : 58) : 41, left: compact ? 43 : 54 };
   const racePlotBottom = height - raceMargin.bottom;
   const racePlotWidth = chartWidth - raceMargin.left - raceMargin.right;
   const racePlotHeight = racePlotBottom - raceMargin.top;
@@ -333,18 +333,29 @@ function MarketChart({
     .sort((a, b) => a.rank - b.rank);
   const raceColors = ["var(--race-1)", "var(--race-2)", "var(--race-3)", "var(--race-4)", "var(--race-5)"];
   const raceLines = raceProducts.map((product, index) => {
-    const points = raceTimeline.map((point) => {
+    const segments: Array<Array<{ x: number; y: number; rank: number; eventId: string; moved: boolean }>> = [];
+    let currentSegment: Array<{ x: number; y: number; rank: number; eventId: string; moved: boolean }> = [];
+    raceTimeline.forEach((point) => {
       const entry = point.rankings.find((ranking) => ranking.productId === product.productId);
-      const rank = entry && entry.rank <= raceRankCount ? entry.rank : raceRankCount + .65;
-      return {
+      if (!entry || entry.rank > raceRankCount) {
+        if (currentSegment.length) segments.push(currentSegment);
+        currentSegment = [];
+        return;
+      }
+      currentSegment.push({
         x: raceXForTime(new Date(point.happenedAt).getTime()),
-        y: raceYForRank(rank),
-        rank,
+        y: raceYForRank(entry.rank),
+        rank: entry.rank,
         eventId: point.id,
         moved: point.movedProductId === product.productId,
-      };
+      });
     });
-    return { product, color: raceColors[index % raceColors.length], points, path: rankRaceLinePath(points) };
+    if (currentSegment.length) segments.push(currentSegment);
+    return {
+      product,
+      color: raceColors[index % raceColors.length],
+      segments: segments.map((points) => ({ points, path: rankRaceLinePath(points) })),
+    };
   });
   const leader = products[0];
   const leaderName = leader ? conciseProductName(leader.name) : null;
@@ -503,16 +514,21 @@ function MarketChart({
             <g clipPath="url(#rankRacePlot)">
               {raceLines.map((line) => (
                 <g className="rank-race-series" key={line.product.productId}>
-                  <path className="rank-race-line-glow" d={line.path} style={{ stroke: line.color }} />
-                  <path className="rank-race-line" d={line.path} style={{ stroke: line.color }} />
-                  {line.points.filter((point) => point.moved && point.rank <= raceRankCount).map((point) => (
-                    <circle className="rank-race-event" cx={point.x} cy={point.y} r="4" style={{ fill: line.color }} key={point.eventId} />
+                  {line.segments.map((segment, segmentIndex) => (
+                    <g key={`${line.product.productId}-${segmentIndex}`}>
+                      <path className="rank-race-line-glow" d={segment.path} style={{ stroke: line.color }} />
+                      <path className="rank-race-line" d={segment.path} style={{ stroke: line.color }} />
+                      {segment.points.filter((point) => point.moved).map((point) => (
+                        <circle className="rank-race-event" cx={point.x} cy={point.y} r="4" style={{ fill: line.color }} key={point.eventId} />
+                      ))}
+                    </g>
                   ))}
                 </g>
               ))}
             </g>
             {raceLines.map((line) => {
-              const endpoint = line.points[line.points.length - 1];
+              const finalSegment = line.segments[line.segments.length - 1];
+              const endpoint = finalSegment?.points[finalSegment.points.length - 1];
               if (!endpoint || endpoint.rank > raceRankCount) return null;
               const shortName = conciseProductName(line.product.productName);
               return (
