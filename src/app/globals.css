@@ -1136,8 +1136,22 @@
     stroke-width: 3.25;
     stroke-dasharray: 3000;
     stroke-dashoffset: 3000;
-    animation: bid-activity-line-in 1s cubic-bezier(.2,.75,.22,1) forwards;
+    animation: bid-activity-line-in 1.35s cubic-bezier(.18,.72,.2,1) forwards;
   }
+  .bid-activity-flow {
+    fill: none;
+    stroke: color-mix(in srgb, var(--activity-line) 54%, white);
+    stroke-width: 2.4;
+    stroke-linecap: round;
+    stroke-dasharray: 2 18;
+    stroke-dashoffset: 0;
+    opacity: 0;
+    vector-effect: non-scaling-stroke;
+    animation: bid-activity-flow 2.1s 1.25s linear infinite;
+  }
+  .bid-activity-runner { opacity: 0; pointer-events: none; animation: bid-activity-runner-in .2s 1s ease-out both; }
+  .bid-activity-runner-halo { fill: var(--activity-line-soft); filter: blur(2px); }
+  .bid-activity-runner-core { fill: #fff; stroke: var(--activity-line); stroke-width: 1.4; vector-effect: non-scaling-stroke; filter: drop-shadow(0 0 5px var(--activity-line)); }
   .bid-activity-payment {
     fill: var(--activity-paid);
     fill-opacity: .74;
@@ -1146,9 +1160,16 @@
     vector-effect: non-scaling-stroke;
     transform-box: fill-box;
     transform-origin: center bottom;
-    animation: bid-activity-payment-in .58s .28s cubic-bezier(.2,.8,.25,1) both;
+    animation:
+      bid-activity-payment-in .72s .42s cubic-bezier(.2,.8,.25,1) both,
+      bid-activity-payment-glow 2.2s 1.2s ease-in-out infinite;
   }
-  .bid-activity-event { cursor: default; animation: bid-activity-event-in .4s cubic-bezier(.2,.8,.25,1) both; }
+  .bid-activity-event { cursor: default; animation: bid-activity-event-in .4s var(--activity-event-delay) cubic-bezier(.2,.8,.25,1) both; }
+  .bid-activity-marker {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: bid-activity-marker-in .58s var(--activity-event-delay) cubic-bezier(.18,1.45,.35,1) both;
+  }
   .bid-activity-halo {
     fill: var(--activity-line-soft);
     stroke: color-mix(in srgb, var(--activity-line) 36%, transparent);
@@ -1169,7 +1190,7 @@
   .bid-activity-event.is-stripe .bid-activity-disc { stroke: var(--activity-paid); }
   .bid-activity-icon { clip-path: circle(50%); pointer-events: none; }
   .bid-activity-fallback { fill: var(--text); font-family: inherit; font-size: 10px; font-weight: 900; }
-  .bid-activity-label { pointer-events: none; }
+  .bid-activity-label { pointer-events: none; animation: bid-activity-label-in .34s calc(var(--activity-event-delay) + .18s) ease-out both; }
   .bid-activity-label rect {
     fill: color-mix(in srgb, var(--surface) 92%, transparent);
     stroke: color-mix(in srgb, var(--activity-line) 45%, var(--line));
@@ -1180,8 +1201,13 @@
   .bid-activity-event.is-stripe .bid-activity-label rect { stroke: color-mix(in srgb, var(--activity-paid) 65%, var(--line)); }
   .bid-activity-label text { fill: var(--text); font-family: inherit; font-size: 9.5px; font-weight: 790; letter-spacing: -.01em; }
   @keyframes bid-activity-line-in { to { stroke-dashoffset: 0; } }
+  @keyframes bid-activity-flow { from { opacity: .75; stroke-dashoffset: 0; } to { opacity: .75; stroke-dashoffset: -100; } }
+  @keyframes bid-activity-runner-in { to { opacity: 1; } }
   @keyframes bid-activity-payment-in { from { opacity: 0; transform: scaleY(0); } to { opacity: 1; transform: scaleY(1); } }
+  @keyframes bid-activity-payment-glow { 0%, 100% { filter: drop-shadow(0 0 0 transparent); } 50% { filter: drop-shadow(0 0 8px var(--activity-paid-soft)); } }
   @keyframes bid-activity-event-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes bid-activity-marker-in { from { opacity: 0; transform: scale(.35); } to { opacity: 1; transform: scale(1); } }
+  @keyframes bid-activity-label-in { from { opacity: 0; filter: blur(3px); } to { opacity: 1; filter: blur(0); } }
   @keyframes bid-activity-halo { 50% { opacity: .45; transform: scale(1.14); } }
 
   .market-chart-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 5px; padding: 30px; color: var(--muted); text-align: center; pointer-events: none; }
@@ -2409,6 +2435,7 @@
 
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
+    .bid-activity-flow, .bid-activity-runner { display: none; }
     *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
   }
 }

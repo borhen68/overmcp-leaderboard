@@ -521,6 +521,14 @@ function MarketChart({
             {activityAreaPath && <path className="bid-activity-area" d={activityAreaPath} />}
             {activityLinePath && <path className="bid-activity-line-glow" d={activityLinePath} />}
             {activityLinePath && <path className="bid-activity-line" d={activityLinePath} />}
+            {activityLinePath && <path className="bid-activity-flow" d={activityLinePath} />}
+            {activityLinePath && (
+              <g className="bid-activity-runner" aria-hidden="true" key={`runner-${activityLinePath}`}>
+                <circle className="bid-activity-runner-halo" r={compact ? 7 : 9} />
+                <circle className="bid-activity-runner-core" r={compact ? 2.4 : 3} />
+                <animateMotion dur={compact ? "3.2s" : "3.8s"} begin="1s" repeatCount="indefinite" path={activityLinePath} />
+              </g>
+            )}
             {activityPoints.map(({ move, x, y }, eventIndex) => {
               const productLabel = conciseProductName(move.productName);
               const visibleProductLabel = productLabel.length > (compact ? 14 : 20) ? `${productLabel.slice(0, compact ? 13 : 19).trim()}…` : productLabel;
@@ -530,13 +538,15 @@ function MarketChart({
               const labelCenterY = Math.max(margin.top + labelHeight / 2, y - (compact ? 30 : 38));
               const label = `${productLabel} · +${formatDollars(move.amountCents)} · ${move.fundingSource === "stripe" ? "paid bid" : "founder credit"}`;
               return (
-                <g className={`bid-activity-event is-${move.fundingSource}`} transform={`translate(${x} ${y})`} style={{ animationDelay: `${.5 + eventIndex * .12}s` }} key={move.id}>
+                <g className={`bid-activity-event is-${move.fundingSource}`} transform={`translate(${x} ${y})`} style={{ "--activity-event-delay": `${.5 + eventIndex * .13}s` } as React.CSSProperties} key={move.id}>
                   <title>{label}</title>
-                  <circle className="bid-activity-halo" r={compact ? 15 : 20} />
-                  <circle className="bid-activity-disc" r={compact ? 12 : 16} />
-                  {move.hasIcon
-                    ? <image className="bid-activity-icon" href={`/api/product-icon/${move.productId}`} x={compact ? -10 : -13} y={compact ? -10 : -13} width={compact ? 20 : 26} height={compact ? 20 : 26} />
-                    : <text className="bid-activity-fallback" y="4" textAnchor="middle">{move.productName.slice(0, 1).toUpperCase()}</text>}
+                  <g className="bid-activity-marker">
+                    <circle className="bid-activity-halo" r={compact ? 15 : 20} />
+                    <circle className="bid-activity-disc" r={compact ? 12 : 16} />
+                    {move.hasIcon
+                      ? <image className="bid-activity-icon" href={`/api/product-icon/${move.productId}`} x={compact ? -10 : -13} y={compact ? -10 : -13} width={compact ? 20 : 26} height={compact ? 20 : 26} />
+                      : <text className="bid-activity-fallback" y="4" textAnchor="middle">{move.productName.slice(0, 1).toUpperCase()}</text>}
+                  </g>
                   <g className="bid-activity-label" transform={`translate(${labelCenterX - x} ${labelCenterY - y})`}>
                     <rect x={-labelWidth / 2} y={-labelHeight / 2} width={labelWidth} height={labelHeight} rx={labelHeight / 2} />
                     <text y={compact ? 3 : 3.5} textAnchor="middle">{visibleProductLabel}</text>
