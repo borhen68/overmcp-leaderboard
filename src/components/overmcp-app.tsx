@@ -9,11 +9,11 @@ import {
   useState,
 } from "react";
 import { BID_INCREMENT_CENTS, PRODUCT_CATEGORIES } from "@/lib/constants";
-import type { LeaderboardPayload, LeaderboardProduct, MarketDay, MarketMove, RankRacePoint } from "@/lib/types";
+import type { LeaderboardPayload, LeaderboardProduct, MarketDay, MarketMove } from "@/lib/types";
 
 type SortMode = "Rank" | "Clicks" | "Newest";
 type MarketRange = "7D" | "30D" | "ALL";
-type MarketView = "value" | "race";
+type MarketView = "value" | "activity";
 type Theme = "dark" | "light";
 type AutofillStatus = "idle" | "loading" | "success" | "error";
 type BidTargetRank = 1 | 2 | 3 | 10;
@@ -232,7 +232,7 @@ function marketLinePath(points: Array<{ x: number; y: number }>) {
   return points.slice(1).reduce((path, point) => `${path} H ${point.x} V ${point.y}`, `M ${points[0].x} ${points[0].y}`);
 }
 
-function rankRaceLinePath(points: Array<{ x: number; y: number }>) {
+function smoothChartLinePath(points: Array<{ x: number; y: number }>) {
   if (!points.length) return "";
   return points.slice(1).reduce((path, point, index) => {
     const previous = points[index];
@@ -244,8 +244,6 @@ function rankRaceLinePath(points: Array<{ x: number; y: number }>) {
 function MarketChart({
   history,
   moves,
-  rankHistory,
-  products,
   stats,
   generatedAt,
   entryLabel,
@@ -256,8 +254,6 @@ function MarketChart({
 }: {
   history: MarketDay[];
   moves: MarketMove[];
-  rankHistory: RankRacePoint[];
-  products: LeaderboardProduct[];
   stats: LeaderboardPayload["stats"];
   generatedAt: string;
   entryLabel: string;
@@ -266,7 +262,7 @@ function MarketChart({
   totalVisitors: number;
   onClaim: () => void;
 }) {
-  const [view, setView] = useState<MarketView>("value");
+  const [view, setView] = useState<MarketView>("activity");
   const [range, setRange] = useState<MarketRange>("ALL");
   const [chartWidth, setChartWidth] = useState(900);
   const chartFrame = useRef<HTMLDivElement>(null);
@@ -282,7 +278,7 @@ function MarketChart({
   }, []);
 
   const compact = chartWidth < 580;
-  const height = compact ? (view === "race" ? 324 : 310) : 338;
+  const height = compact ? 310 : 338;
   const margin = { top: 27, right: compact ? 29 : 26, bottom: compact ? 51 : 41, left: compact ? 43 : 57 };
   const plotBottom = height - margin.bottom;
   const plotWidth = chartWidth - margin.left - margin.right;
@@ -346,69 +342,40 @@ function MarketChart({
   const rangeChange = currentValue - startingValue;
   const axisTickCount = compact ? 4 : 6;
   const axisTicks = chartTimeTicks(rangeStart, now, axisTickCount);
-  const raceRankCount = Math.max(1, Math.min(compact ? 3 : 5, products.length || 1));
-  const raceMargin = { top: compact ? 37 : 32, right: compact ? 37 : 188, bottom: raceRankCount <= 3 ? (compact ? 66 : 58) : 41, left: compact ? 43 : 54 };
-  const racePlotBottom = height - raceMargin.bottom;
-  const racePlotWidth = chartWidth - raceMargin.left - raceMargin.right;
-  const racePlotHeight = racePlotBottom - raceMargin.top;
-  const raceXForTime = (timestamp: number) => raceMargin.left + ((timestamp - rangeStart) / Math.max(1, now - rangeStart)) * racePlotWidth;
-  const raceYForRank = (rank: number) => raceMargin.top + ((rank - 1) / Math.max(1, raceRankCount - 1)) * racePlotHeight;
-  const racePointsInRange = rankHistory.filter((point) => {
-    const timestamp = new Date(point.happenedAt).getTime();
-    return timestamp > rangeStart && timestamp <= now;
-  });
-  const racePointBeforeRange = [...rankHistory].reverse().find((point) => new Date(point.happenedAt).getTime() <= rangeStart);
-  const latestRacePoint = [...rankHistory].reverse().find((point) => new Date(point.happenedAt).getTime() <= now);
-  const raceTimeline = [
-    ...(racePointBeforeRange ? [{ ...racePointBeforeRange, id: `range-start-${racePointBeforeRange.id}`, happenedAt: new Date(rangeStart).toISOString(), movedProductId: null }] : []),
-    ...racePointsInRange,
-    ...(latestRacePoint ? [{ ...latestRacePoint, id: `range-end-${latestRacePoint.id}`, happenedAt: new Date(now).toISOString(), movedProductId: null }] : []),
-  ];
-  const raceProducts = (latestRacePoint?.rankings ?? [])
-    .filter((product) => product.rank <= raceRankCount)
-    .sort((a, b) => a.rank - b.rank);
-  const raceColors = ["var(--race-1)", "var(--race-2)", "var(--race-3)", "var(--race-4)", "var(--race-5)"];
-  const raceLines = raceProducts.map((product, index) => {
-    const segments: Array<Array<{ x: number; y: number; rank: number; eventId: string; moved: boolean }>> = [];
-    let currentSegment: Array<{ x: number; y: number; rank: number; eventId: string; moved: boolean }> = [];
-    raceTimeline.forEach((point) => {
-      const entry = point.rankings.find((ranking) => ranking.productId === product.productId);
-      if (!entry || entry.rank > raceRankCount) {
-        if (currentSegment.length) segments.push(currentSegment);
-        currentSegment = [];
-        return;
-      }
-      currentSegment.push({
-        x: raceXForTime(new Date(point.happenedAt).getTime()),
-        y: raceYForRank(entry.rank),
-        rank: entry.rank,
-        eventId: point.id,
-        moved: point.movedProductId === product.productId,
-      });
-    });
-    if (currentSegment.length) segments.push(currentSegment);
-    return {
-      product,
-      color: raceColors[index % raceColors.length],
-      segments: segments.map((points) => ({ points, path: rankRaceLinePath(points) })),
-    };
-  });
-  const leader = products[0];
-  const leaderName = leader ? conciseProductName(leader.name) : null;
+  const activityMoves = visibleMoves.slice(-12);
+  const activityPeakCents = Math.max(stats.minimumBidCents, ...activityMoves.map((move) => move.amountCents));
+  const activityStepCents = niceChartStep(activityPeakCents / 3);
+  const activityMaxCents = Math.max(activityStepCents * 3, Math.ceil(activityPeakCents / activityStepCents) * activityStepCents);
+  const activityY = (value: number) => plotBottom - (value / Math.max(1, activityMaxCents)) * plotHeight;
+  const activityPoints = activityMoves.map((move) => ({
+    move,
+    x: xForTime(new Date(move.happenedAt).getTime()),
+    y: activityY(move.amountCents),
+  }));
+  const activityLinePoints = activityPoints.length
+    ? [{ x: margin.left, y: plotBottom }, ...activityPoints.map(({ x, y }) => ({ x, y }))]
+    : [];
+  const activityLinePath = smoothChartLinePath(activityLinePoints);
+  const activityAreaPath = activityLinePoints.length
+    ? `${activityLinePath} L ${activityLinePoints.at(-1)!.x} ${plotBottom} L ${margin.left} ${plotBottom} Z`
+    : "";
+  const latestMove = activityMoves.at(-1);
+  const paidVolume = visibleDays.reduce((total, day) => total + day.paidVolumeCents, 0);
+  const creditVolume = visibleDays.reduce((total, day) => total + day.creditVolumeCents, 0);
 
   return (
     <article className="market-chart-card">
       <header className="market-chart-topbar">
         <div className="market-chart-identity">
           <span className="market-chart-logo"><img src="/icon.svg" alt="" /></span>
-          <div><strong>OverMCP Market Pulse</strong><small>{view === "value" ? "Confirmed value over time" : "Watch products fight for position"}</small></div>
+          <div><strong>OverMCP Market Pulse</strong><small>{view === "value" ? "Confirmed value over time" : "Every confirmed bid, as it lands"}</small></div>
           <span className="market-live-badge"><i /> LIVE</span>
           <a className="market-chart-audience" href={DATAFAST_SHARE_URL} target="_blank" rel="noopener noreferrer"><i /> {formatInteger(onlineVisitors)} online <span>·</span> {formatInteger(totalVisitors)} visitors <b>↗</b></a>
         </div>
         <div className="market-chart-controls">
           <div className="view-switch" role="group" aria-label="Chart type">
             <button className={view === "value" ? "active" : ""} onClick={() => setView("value")} aria-pressed={view === "value"}>Market Value</button>
-            <button className={view === "race" ? "active" : ""} onClick={() => setView("race")} aria-pressed={view === "race"}>Rank Race</button>
+            <button className={view === "activity" ? "active" : ""} onClick={() => setView("activity")} aria-pressed={view === "activity"}>Bid Activity</button>
           </div>
           <div className="market-range" role="group" aria-label="Chart date range">
             {(["7D", "30D", "ALL"] as MarketRange[]).map((option) => (
@@ -439,15 +406,15 @@ function MarketChart({
           </div>
         </div>
       ) : (
-          <div className="market-chart-summary market-race-summary">
+        <div className="market-chart-summary market-activity-summary">
           <div className="market-chart-quote">
-            <span>Current leader</span>
-            <strong title={leader?.name}>{leaderName ?? "Race not started"}</strong>
-            <small><Icon name="trend" size={14} />{leader ? `#1 with ${formatDollars(leader.bidCents)} confirmed` : "The first confirmed bid opens the race"}</small>
+            <span>Latest confirmed move</span>
+            <strong>{latestMove ? `+${formatDollars(latestMove.amountCents)}` : "$0"}</strong>
+            <small><Icon name="trend" size={14} />{latestMove ? `${conciseProductName(latestMove.productName)} · ${latestMove.fundingSource === "stripe" ? "paid bid" : "founder credit"}` : "The first confirmed bid starts the chart"}</small>
           </div>
           <div className="market-chart-stats">
-            <div><span>Products racing</span><strong>{formatInteger(products.length)}</strong></div>
-            <div><span>Positions shown</span><strong>Top {raceRankCount}</strong></div>
+            <div><span>Paid ({range.toLowerCase()})</span><strong>{formatDollars(paidVolume)}</strong></div>
+            <div><span>Founder credits</span><strong>{formatDollars(creditVolume)}</strong></div>
             <div><span>Confirmed moves</span><strong>{formatInteger(rangeBids)}</strong></div>
             <div><span>Entry starts at</span><strong>{formatDollars(stats.minimumBidCents)}</strong></div>
           </div>
@@ -520,88 +487,70 @@ function MarketChart({
           </svg>
         ) : (
           <svg
-            className="market-chart-svg rank-race-svg"
+            className="market-chart-svg bid-activity-svg"
             viewBox={`0 0 ${chartWidth} ${height}`}
             role="img"
-            aria-label={`Rank race for the top ${raceRankCount} products over ${range.toLowerCase()}`}
+            aria-label={`Confirmed bid activity over ${range.toLowerCase()}`}
           >
-            <title>OverMCP product rank race — confirmed bids only</title>
+            <title>OverMCP confirmed bid activity — real bids and disclosed credits only</title>
             <defs>
-              <clipPath id="rankRacePlot"><rect x={raceMargin.left} y={raceMargin.top - 18} width={racePlotWidth} height={racePlotHeight + 36} /></clipPath>
+              <linearGradient id="bidActivityArea" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stopColor="var(--activity-line)" stopOpacity=".3" />
+                <stop offset="100%" stopColor="var(--activity-line)" stopOpacity=".012" />
+              </linearGradient>
             </defs>
-            {Array.from({ length: raceRankCount }, (_, index) => {
-              const rank = index + 1;
-              const y = raceYForRank(rank);
+            {[0, 1, 2, 3].map((tick) => {
+              const value = activityMaxCents - (activityMaxCents / 3) * tick;
+              const y = activityY(value);
               return (
-                <g className={`rank-race-grid${rank === 1 ? " is-leader" : ""}`} key={rank}>
-                  <line x1={raceMargin.left} x2={chartWidth - raceMargin.right} y1={y} y2={y} />
-                  <text x={raceMargin.left - 10} y={y + 4} textAnchor="end">#{rank}</text>
+                <g className="market-chart-grid" key={tick}>
+                  <line x1={margin.left} x2={chartWidth - margin.right} y1={y} y2={y} />
+                  <text x={margin.left - 9} y={y + 3} textAnchor="end">{formatDollars(value)}</text>
                 </g>
               );
             })}
             {axisTicks.map((timestamp) => {
-              const x = raceXForTime(timestamp);
+              const x = xForTime(timestamp);
               return (
-                <text className="market-date-label" x={x} y={height - 17} textAnchor={x < raceMargin.left + 5 ? "start" : x > chartWidth - raceMargin.right - 5 ? "end" : "middle"} key={timestamp}>{dayLabel(utcDayKey(timestamp), range === "ALL" && !compact)}</text>
+                <text className="market-date-label" x={x} y={height - 17} textAnchor={x < margin.left + 5 ? "start" : x > chartWidth - margin.right - 5 ? "end" : "middle"} key={timestamp}>{dayLabel(utcDayKey(timestamp), range === "ALL" && !compact)}</text>
               );
             })}
-            <g clipPath="url(#rankRacePlot)">
-              {raceLines.map((line) => (
-                <g className="rank-race-series" key={line.product.productId}>
-                  {line.segments.map((segment, segmentIndex) => (
-                    <g key={`${line.product.productId}-${segmentIndex}`}>
-                      <path className="rank-race-line-glow" d={segment.path} style={{ stroke: line.color }} />
-                      <path className="rank-race-line" d={segment.path} style={{ stroke: line.color }} />
-                      {segment.points.filter((point) => point.moved).map((point) => (
-                        <circle className="rank-race-event" cx={point.x} cy={point.y} r="4" style={{ fill: line.color }} key={point.eventId} />
-                      ))}
-                    </g>
-                  ))}
-                </g>
-              ))}
-            </g>
-            {raceLines.map((line) => {
-              const firstSegment = line.segments[0];
-              const entry = firstSegment?.points[0];
-              if (!entry || !entry.moved || entry.x <= raceMargin.left + 2) return null;
+            {activityPoints.filter(({ move }) => move.fundingSource === "stripe").map(({ move, x, y }) => (
+              <rect className="bid-activity-payment" x={x - (compact ? 5 : 8)} y={y} width={compact ? 10 : 16} height={Math.max(0, plotBottom - y)} rx={compact ? 5 : 8} key={`payment-${move.id}`} />
+            ))}
+            {activityAreaPath && <path className="bid-activity-area" d={activityAreaPath} />}
+            {activityLinePath && <path className="bid-activity-line-glow" d={activityLinePath} />}
+            {activityLinePath && <path className="bid-activity-line" d={activityLinePath} />}
+            {activityPoints.map(({ move, x, y }, eventIndex) => {
+              const productLabel = conciseProductName(move.productName);
+              const visibleProductLabel = productLabel.length > (compact ? 14 : 20) ? `${productLabel.slice(0, compact ? 13 : 19).trim()}…` : productLabel;
+              const labelWidth = Math.min(compact ? 96 : 126, Math.max(compact ? 58 : 66, visibleProductLabel.length * (compact ? 5.5 : 6.1) + 18));
+              const labelHeight = compact ? 19 : 21;
+              const labelCenterX = Math.max(margin.left + labelWidth / 2, Math.min(chartWidth - margin.right - labelWidth / 2, x));
+              const labelCenterY = Math.max(margin.top + labelHeight / 2, y - (compact ? 30 : 38));
+              const label = `${productLabel} · +${formatDollars(move.amountCents)} · ${move.fundingSource === "stripe" ? "paid bid" : "founder credit"}`;
               return (
-                <g className="rank-race-entry" transform={`translate(${entry.x} ${entry.y})`} key={`entry-${line.product.productId}`}>
-                  <circle r="5" style={{ fill: line.color }} />
-                  {!compact && <>
-                    <rect x="-7" y="-29" width="77" height="19" rx="6" />
-                    <text x="2" y="-16">JOINED #{entry.rank}</text>
-                  </>}
-                </g>
-              );
-            })}
-            {raceLines.map((line) => {
-              const finalSegment = line.segments[line.segments.length - 1];
-              const endpoint = finalSegment?.points[finalSegment.points.length - 1];
-              if (!endpoint || endpoint.rank > raceRankCount) return null;
-              const shortName = conciseProductName(line.product.productName);
-              return (
-                <g className="rank-race-endpoint" transform={`translate(${endpoint.x} ${endpoint.y})`} key={line.product.productId}>
-                  <title>{`${line.product.productName}: rank ${line.product.rank}, ${formatDollars(line.product.bidCents)} confirmed`}</title>
-                  <circle className="rank-race-endpoint-halo" r="20" style={{ fill: line.color }} />
-                  <circle className="rank-race-endpoint-disc" r="16" />
-                  {line.product.hasIcon
-                    ? <image className="rank-race-icon" href={`/api/product-icon/${line.product.productId}`} x="-13" y="-13" width="26" height="26" />
-                    : <text className="rank-race-fallback" y="4" textAnchor="middle">{line.product.productName.slice(0, 1).toUpperCase()}</text>}
-                  {!compact && <>
-                    <text className="rank-race-name" x="27" y="-2">{shortName}</text>
-                    <text className="rank-race-meta" x="27" y="13">#{line.product.rank} · {formatDollars(line.product.bidCents)}</text>
-                  </>}
+                <g className={`bid-activity-event is-${move.fundingSource}`} transform={`translate(${x} ${y})`} style={{ animationDelay: `${.5 + eventIndex * .12}s` }} key={move.id}>
+                  <title>{label}</title>
+                  <circle className="bid-activity-halo" r={compact ? 15 : 20} />
+                  <circle className="bid-activity-disc" r={compact ? 12 : 16} />
+                  {move.hasIcon
+                    ? <image className="bid-activity-icon" href={`/api/product-icon/${move.productId}`} x={compact ? -10 : -13} y={compact ? -10 : -13} width={compact ? 20 : 26} height={compact ? 20 : 26} />
+                    : <text className="bid-activity-fallback" y="4" textAnchor="middle">{move.productName.slice(0, 1).toUpperCase()}</text>}
+                  <g className="bid-activity-label" transform={`translate(${labelCenterX - x} ${labelCenterY - y})`}>
+                    <rect x={-labelWidth / 2} y={-labelHeight / 2} width={labelWidth} height={labelHeight} rx={labelHeight / 2} />
+                    <text y={compact ? 3 : 3.5} textAnchor="middle">{visibleProductLabel}</text>
+                  </g>
                 </g>
               );
             })}
           </svg>
         )}
         {view === "value" && !moves.length && <div className="market-chart-empty"><strong>The market opens with the first confirmed bid.</strong><span>No movement is simulated.</span></div>}
-        {view === "race" && !raceProducts.length && <div className="market-chart-empty"><strong>The rank race opens with the first confirmed bid.</strong><span>No positions are simulated.</span></div>}
-        {view === "race" && raceProducts.length === 1 && <div className="rank-race-notice"><i /> One product holds the track. The next confirmed bid starts the chase.</div>}
+        {view === "activity" && !activityMoves.length && <div className="market-chart-empty"><strong>Bid activity begins with the first confirmed move.</strong><span>No activity is simulated.</span></div>}
       </div>
 
-      <footer className="market-chart-footnote"><strong>How to read it</strong>{view === "value" ? <><span>The line rises only when confirmed value is added.</span><span>Product logos identify who made each move.</span></> : <><span>A line begins when a product enters.</span><span>It moves only when confirmed bids change the order.</span></>}<small>Stripe payments + disclosed founder credits · no simulated data</small></footer>
+      <footer className={`market-chart-footnote${view === "activity" ? " is-activity" : ""}`}><strong>How to read it</strong>{view === "value" ? <><span>The line rises only when confirmed value is added.</span><span>Product logos identify who made each move.</span></> : <><span>The violet line tracks each confirmed bid size.</span><span>Lime bars mark paid Stripe bids.</span></>}<small>Stripe payments + disclosed founder credits · no simulated data</small></footer>
     </article>
   );
 }
@@ -1021,8 +970,6 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
             <MarketChart
               history={data.marketHistory}
               moves={data.marketMoves}
-              rankHistory={data.rankHistory ?? []}
-              products={data.products}
               stats={data.stats}
               generatedAt={data.generatedAt}
               entryLabel={marketEntryLabel}
