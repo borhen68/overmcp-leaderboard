@@ -1071,6 +1071,26 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
           </div>
           <footer><div><span>Paid bids</span><strong>{formatDollars(data.stats.paidBidCents)}</strong></div><div><span>Founder credits</span><strong>{formatDollars(data.stats.creditBidCents)}</strong></div><div><span>Products</span><strong>{formatInteger(data.stats.products)}</strong></div><div><span>Tracked clicks</span><strong>{formatInteger(data.stats.totalClicks)}</strong></div><a href="/rules">Read the ranking rules <Icon name="arrow" size={14} /></a></footer>
         </section>
+
+        <section className="product-hunt-section" aria-labelledby="product-hunt-title">
+          <div className="container product-hunt-inner">
+            <div className="product-hunt-copy">
+              <span>NOW ON PRODUCT HUNT</span>
+              <h2 id="product-hunt-title">Support the launch.</h2>
+              <p>OverMCP is live. Visit the Product Hunt page, join the conversation, and help more builders discover the leaderboard.</p>
+            </div>
+            <div className="product-hunt-card">
+              <div className="product-hunt-card-head">
+                <img alt="OverMCP" src="/producthunt-overmcp.png" width="64" height="64" />
+                <div>
+                  <h3>OverMCP</h3>
+                  <p>The market for builders.</p>
+                </div>
+              </div>
+              <a href="https://www.producthunt.com/products/overmcp?embed=true&amp;utm_source=embed&amp;utm_medium=post_embed" target="_blank" rel="noopener noreferrer">Check it out on Product Hunt <span aria-hidden="true">→</span></a>
+            </div>
+          </div>
+        </section>
       </main>
 
       <footer className="site-footer">

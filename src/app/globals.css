@@ -1527,6 +1527,46 @@
   .proof-orbit-one { width: 310px; height: 310px; left: -154px; bottom: -108px; }
   .proof-orbit-two { width: 215px; height: 215px; right: -105px; top: -62px; border-color: var(--orange); opacity: .16; }
 
+  .product-hunt-section { padding: 0 0 88px; }
+  .product-hunt-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 500px);
+    align-items: center;
+    gap: 54px;
+    overflow: hidden;
+    padding: 48px;
+    border: 1px solid var(--line);
+    border-radius: 24px;
+    background:
+      radial-gradient(circle at 92% 20%, rgba(255, 97, 84, .16), transparent 20rem),
+      radial-gradient(circle at 4% 100%, rgba(194, 233, 120, .12), transparent 22rem),
+      var(--surface-raised);
+  }
+  .product-hunt-copy > span { color: var(--orange); font-size: 10px; font-weight: 850; letter-spacing: .13em; }
+  .product-hunt-copy h2 { margin: 10px 0 12px; font-size: clamp(32px, 4vw, 52px); line-height: .98; letter-spacing: -.055em; }
+  .product-hunt-copy p { max-width: 530px; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+  .product-hunt-card {
+    width: 100%;
+    max-width: 500px;
+    justify-self: end;
+    padding: 20px;
+    color: #1a1a1a;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .05), 0 22px 55px rgba(0, 0, 0, .12);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  .product-hunt-card-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .product-hunt-card-head img { width: 64px; height: 64px; flex: 0 0 auto; border-radius: 8px; object-fit: cover; }
+  .product-hunt-card-head > div { min-width: 0; flex: 1; }
+  .product-hunt-card h3 { overflow: hidden; margin: 0; color: #1a1a1a; font-size: 18px; font-weight: 600; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+  .product-hunt-card p { display: -webkit-box; overflow: hidden; margin: 4px 0 0; color: #666; font-size: 14px; line-height: 1.4; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .product-hunt-card > a { display: inline-flex; align-items: center; gap: 5px; margin-top: 12px; padding: 9px 16px; color: #fff; border-radius: 8px; background: #ff6154; font-size: 14px; font-weight: 650; text-decoration: none; transition: transform .18s ease, box-shadow .18s ease, background .18s ease; }
+  .product-hunt-card > a:hover { background: #f34f43; box-shadow: 0 8px 20px rgba(255, 97, 84, .26); transform: translateY(-1px); }
+  .product-hunt-card > a span { transition: transform .18s ease; }
+  .product-hunt-card > a:hover span { transform: translateX(2px); }
+
   .site-footer { padding: 72px 0 22px; border-top: 1px solid var(--line); background: var(--surface); }
   .footer-top { display: grid; grid-template-columns: 1.55fr .7fr .7fr 1.2fr; gap: 45px; padding-bottom: 58px; }
   .footer-top > div:first-child p { max-width: 250px; margin: 19px 0 0; color: var(--muted); font-size: 12px; }
@@ -2107,6 +2147,8 @@
     .cta-card-stack { height: 320px; }
     .live-proof-section { min-height: 590px; padding-block: 86px 92px; }
     .live-proof-value { width: min(680px, 100%); min-height: 190px; }
+    .product-hunt-inner { grid-template-columns: 1fr; gap: 28px; padding: 34px; }
+    .product-hunt-card { justify-self: start; }
     .footer-top { grid-template-columns: 1.4fr 1fr 1fr; }
     .footer-newsletter { grid-column: 1 / -1; }
   }
@@ -2285,6 +2327,12 @@
     .live-proof-inner > p { margin-top: 23px; font-size: 17px; }
     .live-proof-details { gap: 8px; margin-top: 20px; }
     .live-proof-details > i { display: none; }
+    .product-hunt-section { padding-bottom: 58px; }
+    .product-hunt-inner { gap: 24px; padding: 25px 18px; border-radius: 18px; }
+    .product-hunt-copy h2 { font-size: 36px; }
+    .product-hunt-copy p { font-size: 12px; }
+    .product-hunt-card { padding: 17px; }
+    .product-hunt-card > a { width: 100%; justify-content: center; }
     .footer-top { grid-template-columns: 1fr 1fr; }
     .footer-top > div:first-child, .footer-newsletter { grid-column: 1 / -1; }
     .footer-bottom { grid-template-columns: 1fr auto; }
