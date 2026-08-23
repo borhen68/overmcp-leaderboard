@@ -16,6 +16,7 @@ type MarketRange = "7D" | "30D" | "ALL";
 type MarketView = "value" | "race";
 type Theme = "dark" | "light";
 type AutofillStatus = "idle" | "loading" | "success" | "error";
+type BidTargetRank = 1 | 2 | 3 | 10;
 
 type WebsiteMetadataResult = {
   name: string;
@@ -198,6 +199,16 @@ function conciseProductName(name: string) {
   return normalized.length > 32 ? `${normalized.slice(0, 31).trim()}…` : normalized;
 }
 
+function targetPositionLabel(targetRank: BidTargetRank, productCount: number) {
+  if (targetRank === 10 && productCount < 10) return `#${productCount + 1}`;
+  return targetRank === 1 ? "#1" : `Top ${targetRank}`;
+}
+
+function claimPositionLabel(targetRank: BidTargetRank, productCount: number) {
+  const label = targetPositionLabel(targetRank, productCount);
+  return label.startsWith("#") ? `Claim the ${label} spot` : `Claim a ${label.toLowerCase()} spot`;
+}
+
 function niceChartStep(value: number) {
   if (value <= 0) return 100;
   const power = 10 ** Math.floor(Math.log10(value));
@@ -237,7 +248,7 @@ function MarketChart({
   products,
   stats,
   generatedAt,
-  entryRank,
+  entryLabel,
   entryPriceCents,
   onlineVisitors,
   totalVisitors,
@@ -249,7 +260,7 @@ function MarketChart({
   products: LeaderboardProduct[];
   stats: LeaderboardPayload["stats"];
   generatedAt: string;
-  entryRank: 1 | 2 | 3 | 10;
+  entryLabel: string;
   entryPriceCents: number;
   onlineVisitors: number;
   totalVisitors: number;
@@ -333,7 +344,6 @@ function MarketChart({
   const rangeVolume = visibleDays.reduce((total, day) => total + day.volumeCents, 0);
   const rangeBids = visibleDays.reduce((total, day) => total + day.bidCount, 0);
   const rangeChange = currentValue - startingValue;
-  const entryLabel = entryRank === 1 ? "#1" : `Top ${entryRank}`;
   const axisTickCount = compact ? 4 : 6;
   const axisTicks = chartTimeTicks(rangeStart, now, axisTickCount);
   const raceRankCount = Math.max(1, Math.min(compact ? 3 : 5, products.length || 1));
@@ -614,7 +624,7 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
   const [sortMode, setSortMode] = useState<SortMode>("Rank");
-  const [targetRank, setTargetRank] = useState<1 | 2 | 3 | 10>(initialTargetRank);
+  const [targetRank, setTargetRank] = useState<BidTargetRank>(initialTargetRank);
   const [bidAmount, setBidAmount] = useState(Math.ceil(initialData.positionPrices[String(initialTargetRank) as "1" | "2" | "3" | "10"] / 100));
   const [modalOpen, setModalOpen] = useState(false);
   const [identity, setIdentity] = useState("");
@@ -649,6 +659,11 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
   const marketEntryRank = ([1, 2, 3, 10] as const)
     .find((rank) => data.positionPrices[String(rank) as "1" | "2" | "3" | "10"] <= data.stats.minimumBidCents) ?? 10;
   const marketEntryPriceCents = data.positionPrices[String(marketEntryRank) as "1" | "2" | "3" | "10"];
+  const marketEntryLabel = targetPositionLabel(marketEntryRank, data.stats.products);
+  const selectedPositionLabel = targetPositionLabel(targetRank, data.stats.products);
+  const targetRankOptions = ([1, 2, 3, 10] as const).filter((rank) => (
+    rank === 10 ? data.stats.products >= 3 : rank <= data.stats.products + 1
+  ));
   const latestMarketMoves = useMemo(
     () => [...data.marketMoves]
       .sort((a, b) => new Date(b.happenedAt).getTime() - new Date(a.happenedAt).getTime())
@@ -785,7 +800,7 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
     });
   }, [category, products, query, sortMode]);
 
-  function chooseRank(rank: 1 | 2 | 3 | 10) {
+  function chooseRank(rank: BidTargetRank) {
     checkoutRequestId.current = null;
     setTargetRank(rank);
     setBidAmount(Math.ceil(data.positionPrices[String(rank) as "1" | "2" | "3" | "10"] / 100));
@@ -872,7 +887,7 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
     event.preventDefault();
     if (submittingRef.current) return;
     if (bidAmount < thresholdDollars) {
-      setFormError(`The current #${targetRank} threshold is $${formatInteger(thresholdDollars)}.`);
+      setFormError(`The current ${selectedPositionLabel} threshold is $${formatInteger(thresholdDollars)}.`);
       return;
     }
 
@@ -1010,7 +1025,7 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
               products={data.products}
               stats={data.stats}
               generatedAt={data.generatedAt}
-              entryRank={marketEntryRank}
+              entryLabel={marketEntryLabel}
               entryPriceCents={marketEntryPriceCents}
               onlineVisitors={publicStats.onlineVisitors}
               totalVisitors={publicStats.totalVisitors}
@@ -1021,11 +1036,11 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
           )}
 
           <div className="market-bid-dock" id="builders">
-            <div className="market-bid-copy"><span>Get on the board</span><strong>{targetRank === 1 ? "Claim the #1 spot" : `Claim a top ${targetRank} spot`}</strong><small>Pay once. Stay listed until another product moves ahead.</small></div>
+            <div className="market-bid-copy"><span>Get on the board</span><strong>{claimPositionLabel(targetRank, data.stats.products)}</strong><small>Pay once. Stay listed until another product moves ahead.</small></div>
             <div className="market-bid-target">
               <span>Target position</span>
               <div className="position-tabs" role="group" aria-label="Target leaderboard position">
-                {([1, 2, 3, 10] as const).map((rank) => <button type="button" className={targetRank === rank ? "active" : ""} key={rank} onClick={() => chooseRank(rank)}>{rank === 1 ? "#1" : `Top ${rank}`}</button>)}
+                {targetRankOptions.map((rank) => <button type="button" className={targetRank === rank ? "active" : ""} key={rank} onClick={() => chooseRank(rank)}>{targetPositionLabel(rank, data.stats.products)}</button>)}
               </div>
               <div className="market-bid-stepper">
                 <button type="button" aria-label={`Decrease bid by ${formatDollars(BID_INCREMENT_CENTS)}`} onClick={() => changeBidAmount(bidAmount - bidStepDollars)}>−</button>
@@ -1180,10 +1195,10 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
         <div className="modal-backdrop" onMouseDown={closeModal}>
           <section className="bid-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
             <button className="modal-close" onClick={() => setModalOpen(false)} aria-label="Close dialog"><Icon name="close" size={19} /></button>
-            <div className="modal-kicker"><span>{targetRank === 1 ? "#1" : `TOP ${targetRank}`}</span> Placement checkout</div>
+            <div className="modal-kicker"><span>{selectedPositionLabel.toUpperCase()}</span> Placement checkout</div>
             <h2 id="modal-title">Put your product where<br />people look first.</h2>
             <p className="modal-description">Your position is based on your product’s confirmed bid total, including any promotional credit. For an existing listing, checkout charges only the difference needed to reach this total.</p>
-            <div className="modal-summary"><div><span>Target position</span><strong>{targetRank === 1 ? "#1" : `Top ${targetRank}`}</strong></div><div><span>Target total bid</span><strong>${formatInteger(bidAmount)}</strong></div><div><span>Current threshold</span><strong>${formatInteger(thresholdDollars)}</strong></div></div>
+            <div className="modal-summary"><div><span>Target position</span><strong>{selectedPositionLabel}</strong></div><div><span>Target total bid</span><strong>${formatInteger(bidAmount)}</strong></div><div><span>Current threshold</span><strong>${formatInteger(thresholdDollars)}</strong></div></div>
             <form onSubmit={submitPlacement} noValidate>
               <label><span>Product URL or @handle</span><input ref={identityInput} value={identity} onChange={(event) => changeIdentity(event.target.value)} onBlur={() => void autofillWebsite(identity)} placeholder="https://yourproduct.com" required /></label>
               <div className={`autofill-feedback ${autofillStatus}`} aria-live="polite">
