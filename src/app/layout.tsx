@@ -58,14 +58,31 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  colorScheme: "light",
-  themeColor: "#f7f6ef",
+  colorScheme: "dark light",
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#0b0f0d" },
+    { media: "(prefers-color-scheme: light)", color: "#f4f5ef" },
+  ],
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <Script id="theme-init" strategy="beforeInteractive">
+          {`(function () {
+            try {
+              var saved = window.localStorage.getItem("overmcp-theme");
+              var theme = saved === "light" || saved === "dark"
+                ? saved
+                : window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+              document.documentElement.dataset.theme = theme;
+              document.documentElement.style.colorScheme = theme;
+            } catch (_) {
+              document.documentElement.dataset.theme = "dark";
+            }
+          })();`}
+        </Script>
         <Script id="datafast-queue" strategy="beforeInteractive">
           {`window.datafast = window.datafast || function() {
             window.datafast.q = window.datafast.q || [];

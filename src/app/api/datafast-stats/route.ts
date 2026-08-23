@@ -1,25 +1,37 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-const DATAFAST_WEBSITE_ID = "6a8891cc9f3926b34adc34d6";
-const DATAFAST_API = "https://datafa.st/api/analytics";
+const DATAFAST_API = "https://datafa.st/api/v1/analytics";
 
-const realtimeSchema = z.object({
-  count: z.number().int().nonnegative(),
+const metricSchema = z.object({ visitors: z.number().int().nonnegative() });
+const analyticsSchema = z.object({
+  status: z.literal("success"),
+  data: z.union([metricSchema, z.array(metricSchema).min(1)]),
 });
 
-const summarySchema = z.object({
-  totalVisitors: z.number().int().nonnegative(),
-});
+function visitorsFrom(response: z.infer<typeof analyticsSchema>) {
+  return Array.isArray(response.data) ? response.data[0].visitors : response.data.visitors;
+}
 
 export async function GET() {
+  const apiKey = process.env.DATAFAST_API_KEY?.trim();
+  if (!apiKey) {
+    return NextResponse.json({ error: "DataFast API access is not configured." }, {
+      status: 503,
+      headers: { "Cache-Control": "no-store" },
+    });
+  }
+
   try {
+    const headers = { Authorization: `Bearer ${apiKey}` };
     const [realtimeResponse, summaryResponse] = await Promise.all([
-      fetch(`${DATAFAST_API}/realtime?websiteId=${DATAFAST_WEBSITE_ID}`, {
+      fetch(`${DATAFAST_API}/realtime`, {
+        headers,
         next: { revalidate: 15 },
         signal: AbortSignal.timeout(4_000),
       }),
-      fetch(`${DATAFAST_API}/main?websiteId=${DATAFAST_WEBSITE_ID}&period=last12m&granularity=monthly`, {
+      fetch(`${DATAFAST_API}/overview?fields=visitors`, {
+        headers,
         next: { revalidate: 60 },
         signal: AbortSignal.timeout(4_000),
       }),
@@ -29,12 +41,12 @@ export async function GET() {
       throw new Error("DataFast public metrics are unavailable.");
     }
 
-    const realtime = realtimeSchema.parse(await realtimeResponse.json());
-    const summary = summarySchema.parse(await summaryResponse.json());
+    const realtime = analyticsSchema.parse(await realtimeResponse.json());
+    const summary = analyticsSchema.parse(await summaryResponse.json());
 
     return NextResponse.json({
-      onlineVisitors: realtime.count,
-      totalVisitors: summary.totalVisitors,
+      onlineVisitors: visitorsFrom(realtime),
+      totalVisitors: visitorsFrom(summary),
     }, {
       headers: {
         "Cache-Control": "public, s-maxage=15, stale-while-revalidate=60",

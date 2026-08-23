@@ -14,6 +14,7 @@ import type { LeaderboardPayload, LeaderboardProduct, MarketDay, MarketMove, Ran
 type SortMode = "Rank" | "Clicks" | "Newest";
 type MarketRange = "7D" | "30D" | "ALL";
 type MarketView = "value" | "race";
+type Theme = "dark" | "light";
 type AutofillStatus = "idle" | "loading" | "success" | "error";
 
 type WebsiteMetadataResult = {
@@ -311,7 +312,7 @@ function MarketChart({
   const raceProducts = (latestRacePoint?.rankings ?? [])
     .filter((product) => product.rank <= raceRankCount)
     .sort((a, b) => a.rank - b.rank);
-  const raceColors = ["#c2e978", "#ff7560", "#72d5a2", "#98a5ff", "#f5a7dd"];
+  const raceColors = ["var(--race-1)", "var(--race-2)", "var(--race-3)", "var(--race-4)", "var(--race-5)"];
   const raceLines = raceProducts.map((product, index) => {
     const points = raceTimeline.map((point) => {
       const entry = point.rankings.find((ranking) => ranking.productId === product.productId);
@@ -535,6 +536,7 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
   const initialTargetRank = ([1, 2, 3, 10] as const)
     .find((rank) => initialData.positionPrices[String(rank) as "1" | "2" | "3" | "10"] <= initialData.stats.minimumBidCents) ?? 10;
   const [data, setData] = useState(initialData);
+  const [theme, setTheme] = useState<Theme>("dark");
   const [menuOpen, setMenuOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
@@ -595,6 +597,9 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
   }, [data.generatedAt, data.marketMoves, products]);
 
   useEffect(() => {
+    const activeTheme = document.documentElement.dataset.theme;
+    if (activeTheme === "light" || activeTheme === "dark") setTheme(activeTheme);
+
     try {
       const storedSaved = JSON.parse(window.localStorage.getItem("overmcp-saved") ?? "[]");
       if (Array.isArray(storedSaved)) setSaved(storedSaved.filter((item) => typeof item === "string"));
@@ -865,6 +870,20 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
     });
   }
 
+  function toggleTheme() {
+    setTheme((current) => {
+      const next = current === "dark" ? "light" : "dark";
+      document.documentElement.dataset.theme = next;
+      document.documentElement.style.colorScheme = next;
+      try {
+        window.localStorage.setItem("overmcp-theme", next);
+      } catch {
+        // The active theme still works when browser storage is unavailable.
+      }
+      return next;
+    });
+  }
+
   return (
     <div className="site-shell" id="top">
       <div className="ambient ambient-one" aria-hidden="true" />
@@ -889,6 +908,9 @@ export function OverMcpApp({ initialData }: { initialData: LeaderboardPayload })
             <a href="#builders">For products</a>
           </nav>
           <div className="header-actions">
+            <button className="icon-button theme-button" onClick={toggleTheme} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} aria-pressed={theme === "light"} title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}>
+              <Icon name={theme === "dark" ? "sun" : "moon"} size={18} />
+            </button>
             <button className="button button-small button-primary header-cta" onClick={openBidModal}>List your product <Icon name="arrow" size={15} /></button>
             <button className="icon-button menu-button" onClick={() => setMenuOpen((value) => !value)} aria-label="Toggle navigation" aria-expanded={menuOpen}>
               <Icon name={menuOpen ? "close" : "menu"} size={20} />
