@@ -179,6 +179,25 @@ function dayLabel(date: string, includeYear = false) {
   }).format(new Date(`${date}T00:00:00Z`));
 }
 
+function chartTimeTicks(start: number, end: number, count: number) {
+  const ticksByDay = new Map<string, number>();
+  Array.from({ length: count }, (_, index) => start + ((end - start) * index) / Math.max(1, count - 1)).forEach((timestamp, index) => {
+    const day = utcDayKey(timestamp);
+    if (!ticksByDay.has(day) || index === count - 1) ticksByDay.set(day, timestamp);
+  });
+  return [...ticksByDay.values()];
+}
+
+function conciseProductName(name: string) {
+  const normalized = name.replace(/\s+/g, " ").trim();
+  const dashName = normalized.split(/\s+[—–]\s+/)[0]?.trim();
+  if (dashName && dashName !== normalized && dashName.length <= 32) return dashName;
+  const domains = normalized.match(/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z]{2,})+/gi);
+  const domain = domains?.at(-1);
+  if (domain && (normalized.toLowerCase().endsWith(domain.toLowerCase()) || normalized.length > 32)) return domain;
+  return normalized.length > 32 ? `${normalized.slice(0, 31).trim()}…` : normalized;
+}
+
 function niceChartStep(value: number) {
   if (value <= 0) return 100;
   const power = 10 ** Math.floor(Math.log10(value));
@@ -252,8 +271,8 @@ function MarketChart({
   }, []);
 
   const compact = chartWidth < 580;
-  const height = compact ? 300 : 338;
-  const margin = { top: 27, right: compact ? 14 : 26, bottom: 41, left: compact ? 43 : 57 };
+  const height = compact ? (view === "race" ? 324 : 310) : 338;
+  const margin = { top: 27, right: compact ? 29 : 26, bottom: compact ? 51 : 41, left: compact ? 43 : 57 };
   const plotBottom = height - margin.bottom;
   const plotWidth = chartWidth - margin.left - margin.right;
   const plotHeight = plotBottom - margin.top;
@@ -290,9 +309,9 @@ function MarketChart({
   const rangeChange = currentValue - startingValue;
   const entryLabel = entryRank === 1 ? "#1" : `Top ${entryRank}`;
   const axisTickCount = compact ? 4 : 6;
-  const axisTicks = Array.from({ length: axisTickCount }, (_, index) => rangeStart + ((now - rangeStart) * index) / (axisTickCount - 1));
+  const axisTicks = chartTimeTicks(rangeStart, now, axisTickCount);
   const raceRankCount = compact ? 3 : 5;
-  const raceMargin = { top: 32, right: compact ? 42 : 188, bottom: 41, left: compact ? 42 : 54 };
+  const raceMargin = { top: compact ? 37 : 32, right: compact ? 37 : 188, bottom: compact ? 66 : 41, left: compact ? 43 : 54 };
   const racePlotBottom = height - raceMargin.bottom;
   const racePlotWidth = chartWidth - raceMargin.left - raceMargin.right;
   const racePlotHeight = racePlotBottom - raceMargin.top;
@@ -328,7 +347,7 @@ function MarketChart({
     return { product, color: raceColors[index % raceColors.length], points, path: rankRaceLinePath(points) };
   });
   const leader = products[0];
-  const raceAxisTicks = Array.from({ length: axisTickCount }, (_, index) => rangeStart + ((now - rangeStart) * index) / (axisTickCount - 1));
+  const leaderName = leader ? conciseProductName(leader.name) : null;
 
   return (
     <article className="market-chart-card">
@@ -373,10 +392,10 @@ function MarketChart({
           </div>
         </div>
       ) : (
-        <div className="market-chart-summary market-race-summary">
+          <div className="market-chart-summary market-race-summary">
           <div className="market-chart-quote">
             <span>Current leader</span>
-            <strong>{leader?.name ?? "Race not started"}</strong>
+            <strong title={leader?.name}>{leaderName ?? "Race not started"}</strong>
             <small><Icon name="trend" size={14} />{leader ? `#1 with ${formatDollars(leader.bidCents)} confirmed` : "The first confirmed bid opens the race"}</small>
           </div>
           <div className="market-chart-stats">
@@ -417,7 +436,7 @@ function MarketChart({
           {axisTicks.map((timestamp) => {
             const x = xForTime(timestamp);
             return (
-              <text className="market-date-label" x={x} y={height - 17} textAnchor={x < margin.left + 5 ? "start" : x > chartWidth - margin.right - 5 ? "end" : "middle"} key={timestamp}>{dayLabel(utcDayKey(timestamp), range === "ALL")}</text>
+              <text className="market-date-label" x={x} y={height - 17} textAnchor={x < margin.left + 5 ? "start" : x > chartWidth - margin.right - 5 ? "end" : "middle"} key={timestamp}>{dayLabel(utcDayKey(timestamp), range === "ALL" && !compact)}</text>
             );
           })}
           <path className="market-area" d={areaPath} />
@@ -475,10 +494,10 @@ function MarketChart({
                 </g>
               );
             })}
-            {raceAxisTicks.map((timestamp) => {
+            {axisTicks.map((timestamp) => {
               const x = raceXForTime(timestamp);
               return (
-                <text className="market-date-label" x={x} y={height - 17} textAnchor={x < raceMargin.left + 5 ? "start" : x > chartWidth - raceMargin.right - 5 ? "end" : "middle"} key={timestamp}>{dayLabel(utcDayKey(timestamp), range === "ALL")}</text>
+                <text className="market-date-label" x={x} y={height - 17} textAnchor={x < raceMargin.left + 5 ? "start" : x > chartWidth - raceMargin.right - 5 ? "end" : "middle"} key={timestamp}>{dayLabel(utcDayKey(timestamp), range === "ALL" && !compact)}</text>
               );
             })}
             <g clipPath="url(#rankRacePlot)">
@@ -495,7 +514,7 @@ function MarketChart({
             {raceLines.map((line) => {
               const endpoint = line.points[line.points.length - 1];
               if (!endpoint || endpoint.rank > raceRankCount) return null;
-              const shortName = line.product.productName.length > 18 ? `${line.product.productName.slice(0, 17)}…` : line.product.productName;
+              const shortName = conciseProductName(line.product.productName);
               return (
                 <g className="rank-race-endpoint" transform={`translate(${endpoint.x} ${endpoint.y})`} key={line.product.productId}>
                   <title>{`${line.product.productName}: rank ${line.product.rank}, ${formatDollars(line.product.bidCents)} confirmed`}</title>
