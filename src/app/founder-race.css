@@ -647,14 +647,66 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
+  overflow: hidden;
+  position: relative;
+  isolation: isolate;
   color: #fff;
   border-color: var(--arena-coral);
   background: var(--arena-coral);
   font-weight: 760;
+  box-shadow: 0 8px 22px rgba(217, 89, 62, .15);
+  animation: arena-entry-pulse 3.4s ease-in-out infinite;
+  transition: background 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.arena-entry-form > button::before {
+  content: "";
+  width: 28%;
+  position: absolute;
+  inset: -45% auto -45% -42%;
+  z-index: -1;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .62), transparent);
+  transform: skewX(-18deg) translateX(-220%);
+  animation: arena-entry-shine 3.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.arena-entry-form > button svg {
+  transition: transform 140ms ease;
 }
 
 .arena-entry-form > button:hover {
   background: var(--arena-coral-dark);
+  box-shadow: 0 11px 27px rgba(217, 89, 62, .24);
+  transform: translateY(-2px);
+  animation-play-state: paused;
+}
+
+.arena-entry-form > button:hover svg {
+  transform: translateX(3px);
+}
+
+.arena-entry-form > button:active {
+  box-shadow: 0 5px 14px rgba(217, 89, 62, .18);
+  transform: translateY(0) scale(.985);
+}
+
+@keyframes arena-entry-pulse {
+  0%, 68%, 100% {
+    box-shadow: 0 8px 22px rgba(217, 89, 62, .15);
+  }
+  78% {
+    box-shadow: 0 0 0 6px rgba(237, 113, 84, .12), 0 12px 28px rgba(217, 89, 62, .24);
+  }
+}
+
+@keyframes arena-entry-shine {
+  0%, 65% {
+    transform: skewX(-18deg) translateX(-220%);
+  }
+  84%, 100% {
+    transform: skewX(-18deg) translateX(750%);
+  }
 }
 
 .arena-entry-note {
