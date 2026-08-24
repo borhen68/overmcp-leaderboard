@@ -2,6 +2,7 @@ import { Composition } from "remotion";
 import { OverMcpXPromo } from "./overmcp-x-promo";
 import { OverMcpViralV2 } from "./overmcp-viral-v2";
 import { OverMcpMarketStory } from "./overmcp-market-story";
+import { OverMcpFounderRace } from "./overmcp-founder-race";
 
 export function RemotionRoot() {
   return (
@@ -25,6 +26,14 @@ export function RemotionRoot() {
       <Composition
         id="OverMCPMarketStory"
         component={OverMcpMarketStory}
+        durationInFrames={300}
+        fps={30}
+        width={1080}
+        height={1350}
+      />
+      <Composition
+        id="OverMCPFounderRace"
+        component={OverMcpFounderRace}
         durationInFrames={300}
         fps={30}
         width={1080}

@@ -336,6 +336,7 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
     .map((id) => productsById.get(id))
     .filter((product): product is LeaderboardProduct => Boolean(product));
   const leader = data.crowdRace.leaderId ? productsById.get(data.crowdRace.leaderId) : undefined;
+  const allTimeLeader = data.products.find((product) => product.rank === 1);
   const categoryOptions = useMemo(
     () => [{ name: "All", count: data.stats.products }, ...data.categories],
     [data.categories, data.stats.products],
@@ -346,12 +347,29 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
       ? a.crowdRank - b.crowdRank
       : a.rank - b.rank);
   }, [boardView, category, data.products]);
-  const targetRankOptions = ([1, 2, 3, 10] as const).filter((rank) => (
+  const availableTargetRanks = ([1, 2, 3, 10] as const).filter((rank) => (
     rank === 10 ? data.stats.products >= 3 : rank <= data.stats.products + 1
   ));
+  const targetRankOptions = availableTargetRanks;
   const selectedPositionLabel = positionLabel(targetRank, data.stats.products);
-  const thresholdDollars = Math.ceil(data.positionPrices[String(targetRank) as "1" | "2" | "3" | "10"] / 100);
+  const selectedPositionPrice = data.positionPrices[String(targetRank) as "1" | "2" | "3" | "10"];
+  const matchingHigherRank = targetRankOptions.find((rank) => (
+    rank < targetRank
+    && data.positionPrices[String(rank) as "1" | "2" | "3" | "10"] === selectedPositionPrice
+  ));
+  const thresholdDollars = Math.ceil(selectedPositionPrice / 100);
   const bidStepDollars = BID_INCREMENT_CENTS / 100;
+  const placementBenefits = targetRank === 1
+    ? [
+        "First in the permanent leaderboard until another product passes you.",
+        "Featured in the homepage #1 spotlight with an always-open website link.",
+        "Wins tied supporter counts against every lower all-time position.",
+      ]
+    : [
+        selectedPositionLabel + " permanent placement until another product passes you.",
+        "Eligible to climb into today’s live Top 3 through community backing.",
+        "Always-clickable website links with public click totals.",
+      ];
 
   useEffect(() => {
     const activeTheme = document.documentElement.dataset.theme;
@@ -685,19 +703,34 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
 
       <main>
         <section className="arena-hero arena-container" id="battle">
-          <a
-            className="arena-audience-pill"
-            href={DATAFAST_SHARE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Open live visitor analytics in DataFast"
-          >
-            <i />
-            <strong>{formatInteger(publicStats.onlineVisitors)} online</strong>
-            <span>·</span>
-            <span>{formatInteger(publicStats.totalVisitors)} visitors</span>
-            <span className="arena-audience-action">view live analytics ↗</span>
-          </a>
+          <div className="arena-hero-pills">
+            <a
+              className="arena-audience-pill"
+              href={DATAFAST_SHARE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Open live visitor analytics in DataFast"
+            >
+              <i />
+              <strong>{formatInteger(publicStats.onlineVisitors)} online</strong>
+              <span>·</span>
+              <span>{formatInteger(publicStats.totalVisitors)} visitors</span>
+              <span className="arena-audience-action">view live analytics ↗</span>
+            </a>
+            {allTimeLeader && (
+              <a
+                className="arena-all-time-spotlight"
+                href={"/go/" + allTimeLeader.id}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={"Visit all-time number one " + allTimeLeader.name}
+              >
+                <ProductMark product={allTimeLeader} className="arena-spotlight-logo" />
+                <span><b>#1 ALL-TIME</b>{shortProductName(allTimeLeader.name)}</span>
+                <Icon name="external" size={13} />
+              </a>
+            )}
+          </div>
 
           <div className="arena-kicker">ONE PERSON · ONE BACKING · EVERY DAY</div>
           <h1>
@@ -726,9 +759,17 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
                         <div className="arena-contender-rank">
                           #{product.crowdRank}{product.supportersToday === 0 ? " · WAITING FOR BACKING" : ""}
                         </div>
-                        <ProductMark product={product} className="arena-contender-logo" />
+                        <a
+                          className="arena-product-logo-link"
+                          href={"/go/" + product.id}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label={"Visit " + product.name}
+                        >
+                          <ProductMark product={product} className="arena-contender-logo" />
+                        </a>
                         <div className="arena-contender-copy">
-                          <h2>{shortProductName(product.name)}</h2>
+                          <h2><a href={"/go/" + product.id} target="_blank" rel="noopener noreferrer">{shortProductName(product.name)}</a></h2>
                           <p>{product.description}</p>
                           <div className="arena-contender-signals">
                             <span>{formatInteger(product.weeklyClicks)} clicks this week</span>
@@ -745,19 +786,24 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
                             <span>total clicks</span>
                           </div>
                         </div>
-                        <button
-                          className={isBacked ? "is-backed" : ""}
-                          disabled={supportingId === product.id || anotherBacked}
-                          onClick={() => void supportProduct(product)}
-                        >
-                          {supportingId === product.id
-                            ? "Backing…"
-                            : isBacked
-                              ? <><Icon name="check" size={16} /> Backed today</>
-                              : anotherBacked
-                                ? "Daily backing used"
-                                : <>Back & visit <Icon name="arrow" size={16} /></>}
-                        </button>
+                        <div className="arena-contender-actions">
+                          <button
+                            className={isBacked ? "is-backed" : ""}
+                            disabled={Boolean(supportingId) || Boolean(supportedProductId)}
+                            onClick={() => void supportProduct(product)}
+                          >
+                            {supportingId === product.id
+                              ? "Backing…"
+                              : isBacked
+                                ? <><Icon name="check" size={16} /> Backed today</>
+                                : anotherBacked
+                                  ? "Daily backing used"
+                                  : <>Back & visit <Icon name="arrow" size={16} /></>}
+                          </button>
+                          <a href={"/go/" + product.id} target="_blank" rel="noopener noreferrer">
+                            Visit website <Icon name="external" size={15} />
+                          </a>
+                        </div>
                       </section>
                     );
                   })}
@@ -827,9 +873,17 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
               return (
                 <article className={"arena-product-row " + (displayRank === 1 ? "is-leading" : "")} key={product.id}>
                   <div className="arena-row-rank">#{displayRank}</div>
-                  <ProductMark product={product} className="arena-row-logo" />
+                  <a
+                    className="arena-product-logo-link"
+                    href={"/go/" + product.id}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={"Visit " + product.name}
+                  >
+                    <ProductMark product={product} className="arena-row-logo" />
+                  </a>
                   <div className="arena-row-copy">
-                    <h3>{product.name}</h3>
+                    <h3><a href={"/go/" + product.id} target="_blank" rel="noopener noreferrer">{product.name}</a></h3>
                     <p>{product.description}</p>
                     <div>
                       <span>{product.category}</span>
@@ -853,14 +907,20 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
                     {boardView === "today" && (
                       <button
                         className={"arena-back-button " + (isBacked ? "is-backed" : "")}
-                        disabled={supportingId === product.id || anotherBacked}
+                        disabled={Boolean(supportingId) || Boolean(supportedProductId)}
                         onClick={() => void supportProduct(product)}
                       >
-                        {isBacked ? <><Icon name="check" size={14} /> Backed</> : anotherBacked ? "Visit" : "Back"}
+                        {supportingId === product.id
+                          ? "Backing…"
+                          : isBacked
+                            ? <><Icon name="check" size={14} /> Backed</>
+                            : anotherBacked
+                              ? "Used"
+                              : "Back"}
                       </button>
                     )}
-                    <a href={"/go/" + product.id} target="_blank" rel="noopener noreferrer" aria-label={"Visit " + product.name}>
-                      <Icon name="external" size={16} />
+                    <a className="arena-visit-button" href={"/go/" + product.id} target="_blank" rel="noopener noreferrer" aria-label={"Visit " + product.name}>
+                      Visit <Icon name="external" size={15} />
                     </a>
                   </div>
                 </article>
@@ -947,6 +1007,7 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
               <div>{targetRankOptions.map((rank) => (
                 <button type="button" className={targetRank === rank ? "active" : ""} onClick={() => chooseRank(rank)} key={rank}>
                   {positionLabel(rank, data.stats.products)}
+                  <small>{formatDollars(data.positionPrices[String(rank) as "1" | "2" | "3" | "10"])}</small>
                 </button>
               ))}</div>
               <label>
@@ -954,6 +1015,21 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
                 <span>$<input inputMode="numeric" value={bidAmount} onChange={(event) => changeBidAmount(Number(event.target.value.replace(/\D/g, "")) || Math.ceil(data.stats.minimumBidCents / 100))} aria-label="Total bid amount" /></span>
                 <button type="button" onClick={() => changeBidAmount(bidAmount + bidStepDollars)}>+</button>
               </label>
+              {matchingHigherRank && (
+                <p className="arena-position-note">
+                  Same minimum as {positionLabel(matchingHigherRank, data.stats.products)} because those positions are currently tied.
+                </p>
+              )}
+            </div>
+
+            <div className={"arena-placement-value " + (targetRank === 1 ? "is-number-one" : "")}>
+              <header>
+                <span><Icon name="trophy" size={15} /> {targetRank === 1 ? "THE #1 ADVANTAGE" : selectedPositionLabel + " INCLUDES"}</span>
+                <strong>{formatDollars(selectedPositionPrice)} once</strong>
+              </header>
+              <ul>
+                {placementBenefits.map((benefit) => <li key={benefit}>{benefit}</li>)}
+              </ul>
             </div>
 
             <form onSubmit={submitPlacement} noValidate>
