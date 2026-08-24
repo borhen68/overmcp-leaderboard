@@ -35,6 +35,8 @@ type SupportResult = {
   error?: string;
 };
 
+const DATAFAST_SHARE_URL = "https://datafa.st/share/6a8891cc9f3926b34adc34d6?realtime=1";
+
 type IconName =
   | "arrow"
   | "check"
@@ -189,56 +191,60 @@ function CrowdRaceChart({
   const margin = { top: 24, right: 34, bottom: 34, left: 34 };
   const plotWidth = width - margin.left - margin.right;
   const plotHeight = height - margin.top - margin.bottom;
-  const start = new Date(data.crowdRace.startsAt).getTime();
-  const now = Math.max(start + 1, Math.min(new Date(data.generatedAt).getTime(), new Date(data.crowdRace.endsAt).getTime()));
   const contenderIds = new Set(contenders.map((product) => product.id));
-  const events = data.crowdRace.events.filter((event) => contenderIds.has(event.productId));
+  const events = data.crowdRace.events
+    .filter((event) => contenderIds.has(event.productId))
+    .sort((a, b) => new Date(a.happenedAt).getTime() - new Date(b.happenedAt).getTime());
   const eventsByProduct = new Map<string, CrowdRaceEvent[]>();
   for (const contender of contenders) eventsByProduct.set(contender.id, []);
   for (const event of events) eventsByProduct.get(event.productId)?.push(event);
-  const maximum = Math.max(1, ...contenders.map((product) => product.supportersToday));
-  const xFor = (timestamp: number) => margin.left + ((timestamp - start) / Math.max(1, now - start)) * plotWidth;
+  const maximum = Math.max(2, ...contenders.map((product) => product.supportersToday));
+  const tickValues = [maximum, Math.ceil(maximum / 2), 0];
+  const xForEvent = (index: number) => margin.left + ((index + 1) / (events.length + 1)) * plotWidth;
   const yFor = (supporters: number) => margin.top + plotHeight - (supporters / maximum) * plotHeight;
 
-  const series = contenders.map((product) => {
+  const activeContenders = contenders.filter((product) => product.supportersToday > 0);
+  const series = activeContenders.map((product, seriesIndex) => {
     const productEvents = eventsByProduct.get(product.id) ?? [];
     let running = Math.max(0, product.supportersToday - productEvents.length);
     const points = [{ x: margin.left, y: yFor(running) }];
-    for (const event of productEvents) {
+    for (const [eventIndex, event] of events.entries()) {
+      if (event.productId !== product.id) continue;
       running += 1;
       points.push({
-        x: xFor(new Date(event.happenedAt).getTime()),
+        x: xForEvent(eventIndex),
         y: yFor(running),
       });
     }
-    points.push({ x: width - margin.right, y: yFor(product.supportersToday) });
-    return { product, path: racePath(points) };
+    const endX = width - margin.right - seriesIndex * 10;
+    points.push({ x: endX, y: yFor(product.supportersToday) });
+    return { product, path: racePath(points), endX };
   });
 
   return (
     <div className="arena-race-chart">
       <svg viewBox={"0 0 " + String(width) + " " + String(height)} role="img" aria-label="Live supporter race today">
-        {[0, .5, 1].map((ratio) => {
-          const y = margin.top + plotHeight * ratio;
-          const label = Math.round(maximum * (1 - ratio));
+        {tickValues.map((value) => {
+          const y = yFor(value);
           return (
-            <g className="arena-chart-grid" key={ratio}>
+            <g className="arena-chart-grid" key={value}>
               <line x1={margin.left} x2={width - margin.right} y1={y} y2={y} />
-              <text x={margin.left - 10} y={y + 4} textAnchor="end">{label}</text>
+              <text x={margin.left - 10} y={y + 4} textAnchor="end">{value}</text>
             </g>
           );
         })}
-        {series.map(({ product, path }, index) => (
+        {series.map(({ product, path, endX }, index) => (
           <g className={"arena-chart-series series-" + String(index + 1)} key={product.id}>
+            <title>{shortProductName(product.name) + ": " + formatInteger(product.supportersToday) + " today"}</title>
             <path className="arena-chart-glow" d={path} />
             <path className="arena-chart-line" d={path} />
-            <circle cx={width - margin.right} cy={yFor(product.supportersToday)} r="5" />
+            <circle cx={endX} cy={yFor(product.supportersToday)} r="5" />
           </g>
         ))}
         <text className="arena-chart-time" x={margin.left} y={height - 9}>START</text>
         <text className="arena-chart-time" x={width - margin.right} y={height - 9} textAnchor="end">NOW</text>
       </svg>
-      {!data.crowdRace.totalSupporters && (
+      {!series.length && (
         <div className="arena-chart-empty">
           <strong>The race starts with the first supporter.</strong>
           <span>One person. One backing. Every day.</span>
@@ -640,13 +646,19 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
 
       <main>
         <section className="arena-hero arena-container" id="battle">
-          <div className="arena-audience-pill">
+          <a
+            className="arena-audience-pill"
+            href={DATAFAST_SHARE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Open live visitor analytics in DataFast"
+          >
             <i />
             <strong>{formatInteger(publicStats.onlineVisitors)} online</strong>
             <span>·</span>
             <span>{formatInteger(publicStats.totalVisitors)} visitors</span>
-            <span className="arena-audience-action">watching the race →</span>
-          </div>
+            <span className="arena-audience-action">view live analytics ↗</span>
+          </a>
 
           <div className="arena-kicker">ONE PERSON · ONE BACKING · EVERY DAY</div>
           <h1>
@@ -672,7 +684,9 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
                     const anotherBacked = Boolean(supportedProductId && !isBacked);
                     return (
                       <section className={"arena-contender contender-" + String(index + 1)} key={product.id}>
-                        <div className="arena-contender-rank">{product.supportersToday > 0 ? "#" + String(product.crowdRank) : "SEED #" + String(product.rank)}</div>
+                        <div className="arena-contender-rank">
+                          #{product.crowdRank}{product.supportersToday === 0 ? " · WAITING FOR BACKING" : ""}
+                        </div>
                         <ProductMark product={product} className="arena-contender-logo" />
                         <div className="arena-contender-copy">
                           <h2>{shortProductName(product.name)}</h2>
@@ -781,9 +795,15 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
                       {product.creditCents > 0 && <span>includes founder credit</span>}
                     </div>
                   </div>
-                  <div className="arena-row-score">
-                    <strong>{boardView === "today" ? formatInteger(product.supportersToday) : formatDollars(product.bidCents)}</strong>
-                    <span>{boardView === "today" ? "supporters today" : "confirmed total"}</span>
+                  <div className="arena-row-metrics">
+                    <div className="arena-row-score">
+                      <strong>{boardView === "today" ? formatInteger(product.supportersToday) : formatDollars(product.bidCents)}</strong>
+                      <span>{boardView === "today" ? "supporters today" : "confirmed total"}</span>
+                    </div>
+                    <div className="arena-row-clicks">
+                      <strong>{formatInteger(product.totalClicks)}</strong>
+                      <span>total clicks</span>
+                    </div>
                   </div>
                   <div className="arena-row-actions">
                     {boardView === "today" && (

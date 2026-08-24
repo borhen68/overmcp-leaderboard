@@ -186,6 +186,12 @@
   border-radius: 999px;
   background: var(--arena-panel-soft);
   font-size: 12px;
+  transition: background 140ms ease, transform 140ms ease;
+}
+
+.arena-audience-pill:hover {
+  background: var(--arena-line);
+  transform: translateY(-1px);
 }
 
 .arena-audience-pill i,
@@ -722,7 +728,7 @@
 .arena-product-row {
   min-height: 112px;
   display: grid;
-  grid-template-columns: 48px 58px minmax(0, 1fr) 125px 92px;
+  grid-template-columns: 48px 58px minmax(0, 1fr) 190px 92px;
   align-items: center;
   gap: 14px;
   padding: 17px 18px;
@@ -793,18 +799,31 @@
   white-space: nowrap;
 }
 
-.arena-row-score {
+.arena-row-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
+  gap: 12px;
   text-align: right;
 }
 
-.arena-row-score strong {
+.arena-row-metrics > div + div {
+  padding-left: 12px;
+  border-left: 1px solid var(--arena-line);
+}
+
+.arena-row-metrics strong {
   display: block;
   color: var(--arena-coral-dark);
   font-size: 19px;
   line-height: 1.1;
 }
 
-.arena-row-score span {
+.arena-row-clicks strong {
+  color: var(--arena-ink);
+}
+
+.arena-row-metrics span {
   display: block;
   margin-top: 5px;
   color: var(--arena-faint);
@@ -1409,7 +1428,7 @@
   }
 
   .arena-product-row {
-    grid-template-columns: 42px 52px minmax(0, 1fr) 105px;
+    grid-template-columns: 42px 52px minmax(0, 1fr) 175px;
   }
 
   .arena-row-logo {
@@ -1629,16 +1648,24 @@
     display: none;
   }
 
-  .arena-row-score {
+  .arena-row-metrics {
     grid-column: 3 / 4;
+    grid-row: 2;
+    display: flex;
+    justify-content: flex-start;
+    gap: 14px;
     text-align: left;
   }
 
-  .arena-row-score strong {
+  .arena-row-metrics > div + div {
+    padding-left: 14px;
+  }
+
+  .arena-row-metrics strong {
     font-size: 15px;
   }
 
-  .arena-row-score span {
+  .arena-row-metrics span {
     margin-top: 2px;
   }
 
