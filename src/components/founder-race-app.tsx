@@ -176,7 +176,26 @@ function trackDataFastGoal(goalName: string, parameters: Record<string, string>)
 
 function racePath(points: Array<{ x: number; y: number }>) {
   if (!points.length) return "";
-  return points.slice(1).reduce((path, point) => path + " H " + String(point.x) + " V " + String(point.y), "M " + String(points[0].x) + " " + String(points[0].y));
+  return points.slice(1).reduce((path, point, index) => {
+    const previous = points[index];
+    const distance = point.x - previous.x;
+    const firstControl = previous.x + distance * .42;
+    const secondControl = point.x - distance * .42;
+    return path
+      + " C " + String(firstControl) + " " + String(previous.y)
+      + ", " + String(secondControl) + " " + String(point.y)
+      + ", " + String(point.x) + " " + String(point.y);
+  }, "M " + String(points[0].x) + " " + String(points[0].y));
+}
+
+function raceAreaPath(points: Array<{ x: number; y: number }>, baseline: number) {
+  if (!points.length) return "";
+  const first = points[0];
+  const last = points[points.length - 1];
+  return racePath(points)
+    + " L " + String(last.x) + " " + String(baseline)
+    + " L " + String(first.x) + " " + String(baseline)
+    + " Z";
 }
 
 function CrowdRaceChart({
@@ -200,7 +219,10 @@ function CrowdRaceChart({
   for (const event of events) eventsByProduct.get(event.productId)?.push(event);
   const maximum = Math.max(2, ...contenders.map((product) => product.supportersToday));
   const tickValues = [maximum, Math.ceil(maximum / 2), 0];
-  const xForEvent = (index: number) => margin.left + ((index + 1) / (events.length + 1)) * plotWidth;
+  const eventPlotWidth = plotWidth - 42;
+  const eventSpacing = eventPlotWidth / (events.length + 1);
+  const transitionHalfWidth = Math.max(.15, Math.min(22, eventSpacing * .35));
+  const xForEvent = (index: number) => margin.left + (index + 1) * eventSpacing;
   const yFor = (supporters: number) => margin.top + plotHeight - (supporters / maximum) * plotHeight;
 
   const activeContenders = contenders.filter((product) => product.supportersToday > 0);
@@ -210,20 +232,36 @@ function CrowdRaceChart({
     const points = [{ x: margin.left, y: yFor(running) }];
     for (const [eventIndex, event] of events.entries()) {
       if (event.productId !== product.id) continue;
+      const eventX = xForEvent(eventIndex);
+      points.push({ x: eventX - transitionHalfWidth, y: yFor(running) });
       running += 1;
       points.push({
-        x: xForEvent(eventIndex),
+        x: eventX + transitionHalfWidth,
         y: yFor(running),
       });
     }
     const endX = width - margin.right - seriesIndex * 10;
     points.push({ x: endX, y: yFor(product.supportersToday) });
-    return { product, path: racePath(points), endX };
+    return {
+      product,
+      path: racePath(points),
+      areaPath: raceAreaPath(points, yFor(0)),
+      endX,
+    };
   });
+  const seriesColors = ["var(--arena-coral)", "var(--arena-violet)", "var(--arena-green)"];
 
   return (
     <div className="arena-race-chart">
       <svg viewBox={"0 0 " + String(width) + " " + String(height)} role="img" aria-label="Live supporter race today">
+        <defs>
+          {series.map(({ product }, index) => (
+            <linearGradient id={"arena-race-fill-" + String(index + 1)} x1="0" y1="0" x2="0" y2="1" key={product.id}>
+              <stop offset="0%" stopColor={seriesColors[index]} stopOpacity=".22" />
+              <stop offset="100%" stopColor={seriesColors[index]} stopOpacity="0" />
+            </linearGradient>
+          ))}
+        </defs>
         {tickValues.map((value) => {
           const y = yFor(value);
           return (
@@ -233,9 +271,10 @@ function CrowdRaceChart({
             </g>
           );
         })}
-        {series.map(({ product, path, endX }, index) => (
+        {series.map(({ product, path, areaPath, endX }, index) => (
           <g className={"arena-chart-series series-" + String(index + 1)} key={product.id}>
             <title>{shortProductName(product.name) + ": " + formatInteger(product.supportersToday) + " today"}</title>
+            <path className="arena-chart-area" d={areaPath} fill={"url(#arena-race-fill-" + String(index + 1) + ")"} />
             <path className="arena-chart-glow" d={path} />
             <path className="arena-chart-line" d={path} />
             <circle cx={endX} cy={yFor(product.supportersToday)} r="5" />
@@ -693,13 +732,18 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
                           <p>{product.description}</p>
                           <div className="arena-contender-signals">
                             <span>{formatInteger(product.weeklyClicks)} clicks this week</span>
-                            <span>{formatInteger(product.totalClicks)} all-time</span>
                             <span>{formatDollars(product.bidCents)} confirmed</span>
                           </div>
                         </div>
                         <div className="arena-support-score">
-                          <strong>{formatInteger(product.supportersToday)}</strong>
-                          <span>{product.supportersToday === 1 ? "supporter" : "supporters"} today</span>
+                          <div>
+                            <strong>{formatInteger(product.supportersToday)}</strong>
+                            <span>{product.supportersToday === 1 ? "supporter" : "supporters"} today</span>
+                          </div>
+                          <div className="arena-click-score">
+                            <strong>{formatInteger(product.totalClicks)}</strong>
+                            <span>total clicks</span>
+                          </div>
                         </div>
                         <button
                           className={isBacked ? "is-backed" : ""}

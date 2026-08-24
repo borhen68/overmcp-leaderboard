@@ -381,9 +381,19 @@
   grid-column: 1 / -1;
   display: flex;
   align-items: baseline;
-  gap: 7px;
-  min-width: 82px;
+  gap: 16px;
   text-align: left;
+}
+
+.arena-support-score > div {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.arena-support-score > div + div {
+  padding-left: 16px;
+  border-left: 1px solid var(--arena-line);
 }
 
 .arena-support-score strong {
@@ -396,12 +406,16 @@
 
 .arena-support-score span {
   display: block;
-  margin-top: 0;
   color: var(--arena-faint);
   font-size: 9px;
   font-weight: 720;
   text-transform: uppercase;
   letter-spacing: .06em;
+}
+
+.arena-support-score .arena-click-score strong {
+  color: var(--arena-ink);
+  font-size: 22px;
 }
 
 .arena-contender > button {
@@ -465,6 +479,10 @@
   fill: var(--arena-faint);
   font-size: 9px;
   font-weight: 650;
+}
+
+.arena-chart-series .arena-chart-area {
+  stroke: none;
 }
 
 .arena-chart-series .arena-chart-glow {
@@ -1411,8 +1429,18 @@
 
   .arena-support-score {
     grid-column: auto;
-    display: block;
+    display: grid;
+    gap: 5px;
     text-align: right;
+  }
+
+  .arena-support-score > div {
+    display: block;
+  }
+
+  .arena-support-score > div + div {
+    padding-left: 0;
+    border-left: 0;
   }
 
   .arena-support-score span {
@@ -1563,7 +1591,8 @@
 
   .arena-support-score {
     grid-column: auto;
-    display: block;
+    display: grid;
+    gap: 5px;
     text-align: right;
   }
 
@@ -1573,6 +1602,10 @@
 
   .arena-support-score span {
     margin-top: 4px;
+  }
+
+  .arena-support-score .arena-click-score strong {
+    font-size: 17px;
   }
 
   .arena-race-chart {
