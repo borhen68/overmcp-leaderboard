@@ -50,6 +50,13 @@
       "when": 1787569200000,
       "tag": "0006_daily_founder_race",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787607600000,
+      "tag": "0007_repeat_backings",
+      "breakpoints": true
     }
   ]
 }

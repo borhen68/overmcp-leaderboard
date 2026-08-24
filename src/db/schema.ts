@@ -90,8 +90,8 @@ export const raceSupports = sqliteTable(
     supportedAt: integer("supported_at", { mode: "timestamp_ms" }).default(nowInMilliseconds).notNull(),
   },
   (table) => [
-    uniqueIndex("race_supports_day_visitor_unique").on(table.raceDay, table.visitorId),
-    uniqueIndex("race_supports_day_signal_unique").on(table.raceDay, table.dedupeKey),
+    index("race_supports_day_visitor_idx").on(table.raceDay, table.visitorId),
+    index("race_supports_day_signal_idx").on(table.raceDay, table.dedupeKey),
     index("race_supports_day_product_idx").on(table.raceDay, table.productId),
     index("race_supports_supported_at_idx").on(table.supportedAt),
   ],

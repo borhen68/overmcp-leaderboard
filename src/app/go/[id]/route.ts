@@ -1,8 +1,9 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getDatabase, isDatabaseConfigured } from "@/db";
 import { outboundClicks, products } from "@/db/schema";
+import { allowRequest, clientAddress } from "@/lib/rate-limit";
 
 const botPattern = /bot|crawler|spider|preview|slurp|facebookexternalhit|discordbot/i;
 
@@ -20,11 +21,14 @@ export async function GET(request: Request, context: RouteContext<"/go/[id]">) {
   if (!product) return NextResponse.redirect(new URL("/", request.url), 307);
 
   const userAgent = request.headers.get("user-agent") ?? "unknown";
-  if (!botPattern.test(userAgent) && process.env.ANALYTICS_SALT) {
-    const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-    const tenMinuteBucket = Math.floor(Date.now() / 600_000);
+  const address = clientAddress(request);
+  if (
+    !botPattern.test(userAgent)
+    && process.env.ANALYTICS_SALT
+    && allowRequest(`outbound-click:${product.id}:${address}`, 120, 24 * 60 * 60 * 1000)
+  ) {
     const dedupeKey = createHash("sha256")
-      .update(`${process.env.ANALYTICS_SALT}:${product.id}:${forwardedFor}:${userAgent}:${tenMinuteBucket}`)
+      .update(`${process.env.ANALYTICS_SALT}:${product.id}:${address}:${userAgent}:${Date.now()}:${randomUUID()}`)
       .digest("hex");
 
     await db

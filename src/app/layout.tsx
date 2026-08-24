@@ -6,8 +6,8 @@ import "./founder-race.css";
 const siteUrl = "https://www.overmcp.com";
 const siteTitle = "OverMCP — The live founder race";
 const siteDescription =
-  "Enter your product, rally verified supporters, and race for today’s crowd-chosen #1 spot.";
-const socialImage = "/opengraph-image?v=founder-race-20260824";
+  "Enter your product, rally repeat backings, and race for today’s crowd-chosen #1 spot.";
+const socialImage = "/opengraph-image?v=repeat-backings-20260824";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),

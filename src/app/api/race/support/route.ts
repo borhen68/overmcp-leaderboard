@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, eq, or } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDatabase, isDatabaseConfigured } from "@/db";
@@ -76,24 +76,6 @@ export async function POST(request: Request) {
     .update(`${salt}:${raceWindow.day}:${address}:${userAgent}`)
     .digest("hex");
 
-  const existingSupport = (await db
-    .select({ productId: raceSupports.productId })
-    .from(raceSupports)
-    .where(and(
-      eq(raceSupports.raceDay, raceWindow.day),
-      or(eq(raceSupports.visitorId, parsed.data.visitorId), eq(raceSupports.dedupeKey, dedupeKey)),
-    ))
-    .limit(1))[0];
-
-  if (existingSupport) {
-    return NextResponse.json({
-      ok: existingSupport.productId === product.id,
-      alreadySupported: true,
-      selectedProductId: existingSupport.productId,
-      data: await getLeaderboardData(),
-    });
-  }
-
   await db
     .insert(raceSupports)
     .values({
@@ -102,26 +84,11 @@ export async function POST(request: Request) {
       visitorId: parsed.data.visitorId,
       dedupeKey,
       supportedAt: new Date(),
-    })
-    .onConflictDoNothing();
-
-  const savedSupport = (await db
-    .select({ productId: raceSupports.productId })
-    .from(raceSupports)
-    .where(and(
-      eq(raceSupports.raceDay, raceWindow.day),
-      or(eq(raceSupports.visitorId, parsed.data.visitorId), eq(raceSupports.dedupeKey, dedupeKey)),
-    ))
-    .limit(1))[0];
-
-  if (!savedSupport) {
-    return NextResponse.json({ error: "Your support could not be recorded." }, { status: 500 });
-  }
+    });
 
   return NextResponse.json({
-    ok: savedSupport.productId === product.id,
-    alreadySupported: savedSupport.productId !== product.id,
-    selectedProductId: savedSupport.productId,
+    ok: true,
+    selectedProductId: product.id,
     data: await getLeaderboardData(),
   });
 }

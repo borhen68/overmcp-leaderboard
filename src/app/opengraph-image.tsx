@@ -45,7 +45,7 @@ export default function OpenGraphImage() {
             </svg>
             <div style={{ marginLeft: 15, display: "flex", flexDirection: "column" }}>
               <span style={{ fontSize: 17, fontWeight: 800, letterSpacing: "-.3px" }}>THE LIVE FOUNDER RACE</span>
-              <span style={{ marginTop: 2, color: "#8f9a92", fontSize: 12 }}>One person · one backing · every day</span>
+              <span style={{ marginTop: 2, color: "#8f9a92", fontSize: 12 }}>Every click · one backing · real visit</span>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", padding: "9px 14px", color: "#9ce8bd", border: "1px solid rgba(114,213,162,.25)", borderRadius: 999, background: "rgba(114,213,162,.08)", fontSize: 12, fontWeight: 800, letterSpacing: "1px" }}>
@@ -61,7 +61,7 @@ export default function OpenGraphImage() {
               <span style={{ marginTop: 7, color: "#c2e978" }}>Outgrow.</span>
             </div>
             <div style={{ maxWidth: 600, marginTop: 22, color: "#aab3ad", fontSize: 18, lineHeight: 1.35 }}>
-              Enter your product, rally real supporters, and race for today’s crowd-chosen #1.
+              Enter your product, rally repeat backings, and race for today’s crowd-chosen #1.
             </div>
             <div style={{ marginTop: 25, display: "flex", alignItems: "center" }}>
               <div style={{ display: "flex", alignItems: "center", padding: "11px 16px", color: "#0e1512", borderRadius: 10, background: "#c2e978", fontSize: 15, fontWeight: 900 }}>
@@ -88,7 +88,7 @@ export default function OpenGraphImage() {
             <div style={{ marginTop: 13, display: "flex", flexDirection: "column" }}>
               <div style={{ display: "flex", alignItems: "center", padding: "14px 13px", border: "1px solid rgba(242,244,238,.1)", borderRadius: 11, background: "#121815" }}>
                 <span style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", color: "#0e1512", borderRadius: 9, background: "#72d5a2", fontSize: 11, fontWeight: 900 }}>01</span>
-                <div style={{ marginLeft: 12, display: "flex", flexDirection: "column" }}><strong style={{ fontSize: 14 }}>Rally supporters</strong><span style={{ color: "#7f8a82", fontSize: 11 }}>Every verified backing moves the race.</span></div>
+                <div style={{ marginLeft: 12, display: "flex", flexDirection: "column" }}><strong style={{ fontSize: 14 }}>Build momentum</strong><span style={{ color: "#7f8a82", fontSize: 11 }}>Every manual backing moves the race.</span></div>
               </div>
               <div style={{ marginTop: 9, display: "flex", alignItems: "center", padding: "14px 13px", border: "1px solid rgba(242,244,238,.1)", borderRadius: 11, background: "#121815" }}>
                 <span style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", color: "#0e1512", borderRadius: 9, background: "#ff7560", fontSize: 11, fontWeight: 900 }}>02</span>
@@ -100,7 +100,7 @@ export default function OpenGraphImage() {
 
         <div style={{ height: 49, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 34px", color: "#8f9a92", borderTop: "1px solid rgba(242,244,238,.1)", fontSize: 13 }}>
           <strong style={{ color: "#f2f4ee", fontSize: 15 }}>overmcp.com</strong>
-          <span>Verified supporters · Real visits · Daily reset</span>
+          <span>Repeat backings · Real visits · Daily reset</span>
         </div>
       </div>
     </div>,

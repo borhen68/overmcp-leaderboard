@@ -28,7 +28,6 @@ type WebsiteMetadataResult = {
 
 type SupportResult = {
   ok?: boolean;
-  alreadySupported?: boolean;
   selectedProductId?: string;
   currentRaceDay?: string;
   data?: LeaderboardPayload;
@@ -253,7 +252,7 @@ function CrowdRaceChart({
 
   return (
     <div className="arena-race-chart">
-      <svg viewBox={"0 0 " + String(width) + " " + String(height)} role="img" aria-label="Live supporter race today">
+      <svg viewBox={"0 0 " + String(width) + " " + String(height)} role="img" aria-label="Live backing race today">
         <defs>
           {series.map(({ product }, index) => (
             <linearGradient id={"arena-race-fill-" + String(index + 1)} x1="0" y1="0" x2="0" y2="1" key={product.id}>
@@ -273,7 +272,7 @@ function CrowdRaceChart({
         })}
         {series.map(({ product, path, areaPath, endX }, index) => (
           <g className={"arena-chart-series series-" + String(index + 1)} key={product.id}>
-            <title>{shortProductName(product.name) + ": " + formatInteger(product.supportersToday) + " today"}</title>
+            <title>{shortProductName(product.name) + ": " + formatInteger(product.supportersToday) + " backings today"}</title>
             <path className="arena-chart-area" d={areaPath} fill={"url(#arena-race-fill-" + String(index + 1) + ")"} />
             <path className="arena-chart-glow" d={path} />
             <path className="arena-chart-line" d={path} />
@@ -285,8 +284,8 @@ function CrowdRaceChart({
       </svg>
       {!series.length && (
         <div className="arena-chart-empty">
-          <strong>The race starts with the first supporter.</strong>
-          <span>One person. One backing. Every day.</span>
+          <strong>The race starts with the first backing.</strong>
+          <span>Every click adds one backing and opens the product.</span>
         </div>
       )}
     </div>
@@ -312,7 +311,7 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
   const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [supportingId, setSupportingId] = useState<string | null>(null);
-  const [supportedProductId, setSupportedProductId] = useState<string | null>(null);
+  const [lastBackedProductId, setLastBackedProductId] = useState<string | null>(null);
   const [shareProductId, setShareProductId] = useState<string | null>(null);
   const [formError, setFormError] = useState("");
   const [toast, setToast] = useState("");
@@ -363,7 +362,7 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
     ? [
         "First in the permanent leaderboard until another product passes you.",
         "Featured in the homepage #1 spotlight with an always-open website link.",
-        "Wins tied supporter counts against every lower all-time position.",
+        "Wins tied daily backing counts against every lower all-time position.",
       ]
     : [
         selectedPositionLabel + " permanent placement until another product passes you.",
@@ -384,11 +383,6 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, []);
-
-  useEffect(() => {
-    const storageKey = "overmcp-race-support:" + data.crowdRace.day;
-    setSupportedProductId(window.localStorage.getItem(storageKey));
-  }, [data.crowdRace.day]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 1_000);
@@ -615,8 +609,7 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
       if (!response.ok) throw new Error(result.error ?? "Support could not be recorded.");
       if (result.data) setData(result.data);
       if (result.selectedProductId) {
-        window.localStorage.setItem("overmcp-race-support:" + data.crowdRace.day, result.selectedProductId);
-        setSupportedProductId(result.selectedProductId);
+        setLastBackedProductId(result.selectedProductId);
       }
 
       if (result.selectedProductId === product.id) {
@@ -626,11 +619,10 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
           race_day: data.crowdRace.day,
         });
         setShareProductId(product.id);
-        setToast(result.alreadySupported ? "You already backed " + shortProductName(product.name) + " today." : "You backed " + shortProductName(product.name) + ". Their site opened in a new tab.");
+        setToast("Backing counted for " + shortProductName(product.name) + ". Back again to move them higher.");
       } else {
         setShareProductId(null);
-        const selected = result.selectedProductId ? productsById.get(result.selectedProductId) : undefined;
-        setToast("Your daily backing already belongs to " + (selected ? shortProductName(selected.name) : "another product") + ".");
+        setToast("That backing could not be recorded. Please try again.");
       }
     } catch (error) {
       setShareProductId(null);
@@ -732,14 +724,14 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
             )}
           </div>
 
-          <div className="arena-kicker">ONE PERSON · ONE BACKING · EVERY DAY</div>
+          <div className="arena-kicker">EVERY CLICK · ONE BACKING · REAL VISIT</div>
           <h1>
             Help decide #1
             <span> before {remaining}</span>
           </h1>
           <p className="arena-hero-copy">
-            Founders pay to enter. The internet decides who leads today.
-            Backing a product also sends it a real visit.
+            Founders pay to enter. Every manual backing moves the race
+            and opens the product. Back again whenever you want.
           </p>
 
           <article className="arena-battle-card">
@@ -752,8 +744,7 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
               <>
                 <div className="arena-contenders">
                   {contenders.map((product, index) => {
-                    const isBacked = supportedProductId === product.id;
-                    const anotherBacked = Boolean(supportedProductId && !isBacked);
+                    const wasLastBacked = lastBackedProductId === product.id;
                     return (
                       <section className={"arena-contender contender-" + String(index + 1)} key={product.id}>
                         <div className="arena-contender-rank">
@@ -779,7 +770,7 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
                         <div className="arena-support-score">
                           <div>
                             <strong>{formatInteger(product.supportersToday)}</strong>
-                            <span>{product.supportersToday === 1 ? "supporter" : "supporters"} today</span>
+                            <span>{product.supportersToday === 1 ? "backing" : "backings"} today</span>
                           </div>
                           <div className="arena-click-score">
                             <strong>{formatInteger(product.totalClicks)}</strong>
@@ -788,17 +779,15 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
                         </div>
                         <div className="arena-contender-actions">
                           <button
-                            className={isBacked ? "is-backed" : ""}
-                            disabled={Boolean(supportingId) || Boolean(supportedProductId)}
+                            className={wasLastBacked ? "is-backed" : ""}
+                            disabled={Boolean(supportingId)}
                             onClick={() => void supportProduct(product)}
                           >
                             {supportingId === product.id
                               ? "Backing…"
-                              : isBacked
-                                ? <><Icon name="check" size={16} /> Backed today</>
-                                : anotherBacked
-                                  ? "Daily backing used"
-                                  : <>Back & visit <Icon name="arrow" size={16} /></>}
+                              : wasLastBacked
+                                ? <><Icon name="check" size={16} /> Back again</>
+                                : <>Back & visit <Icon name="arrow" size={16} /></>}
                           </button>
                           <a href={"/go/" + product.id} target="_blank" rel="noopener noreferrer">
                             Visit website <Icon name="external" size={15} />
@@ -819,7 +808,7 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
             )}
 
             <footer className="arena-battle-foot">
-              <span><Icon name="shield" size={14} /> Verified once per visitor and network</span>
+              <span><Icon name="shield" size={14} /> Every manual backing counts · fair-use limits apply</span>
               <span>Every product can climb from the full board below</span>
               <button onClick={() => void shareRace()}><Icon name="share" size={15} /> Share this race</button>
             </footer>
@@ -853,7 +842,7 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
               <h2>{boardView === "today" ? "The founder leaderboard" : "The permanent leaderboard"}</h2>
             </div>
             <p>{boardView === "today"
-              ? "Ranked by verified supporters today. Ties follow all-time position."
+              ? "Ranked by backings today. Repeat backings count; ties follow all-time position."
               : "Ranked by confirmed bid total. Pay once and stay until another product passes you."}</p>
           </header>
 
@@ -868,8 +857,7 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
           <div className="arena-product-list">
             {visibleProducts.length ? visibleProducts.map((product) => {
               const displayRank = boardView === "today" ? product.crowdRank : product.rank;
-              const isBacked = supportedProductId === product.id;
-              const anotherBacked = Boolean(supportedProductId && !isBacked);
+              const wasLastBacked = lastBackedProductId === product.id;
               return (
                 <article className={"arena-product-row " + (displayRank === 1 ? "is-leading" : "")} key={product.id}>
                   <div className="arena-row-rank">#{displayRank}</div>
@@ -896,7 +884,7 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
                   <div className="arena-row-metrics">
                     <div className="arena-row-score">
                       <strong>{boardView === "today" ? formatInteger(product.supportersToday) : formatDollars(product.bidCents)}</strong>
-                      <span>{boardView === "today" ? "supporters today" : "confirmed total"}</span>
+                      <span>{boardView === "today" ? "backings today" : "confirmed total"}</span>
                     </div>
                     <div className="arena-row-clicks">
                       <strong>{formatInteger(product.totalClicks)}</strong>
@@ -906,17 +894,15 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
                   <div className="arena-row-actions">
                     {boardView === "today" && (
                       <button
-                        className={"arena-back-button " + (isBacked ? "is-backed" : "")}
-                        disabled={Boolean(supportingId) || Boolean(supportedProductId)}
+                        className={"arena-back-button " + (wasLastBacked ? "is-backed" : "")}
+                        disabled={Boolean(supportingId)}
                         onClick={() => void supportProduct(product)}
                       >
                         {supportingId === product.id
                           ? "Backing…"
-                          : isBacked
-                            ? <><Icon name="check" size={14} /> Backed</>
-                            : anotherBacked
-                              ? "Used"
-                              : "Back"}
+                          : wasLastBacked
+                            ? <><Icon name="check" size={14} /> Again</>
+                            : "Back"}
                       </button>
                     )}
                     <a className="arena-visit-button" href={"/go/" + product.id} target="_blank" rel="noopener noreferrer" aria-label={"Visit " + product.name}>
@@ -980,7 +966,7 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
           </div>
           <div className="arena-how-steps">
             <article><b>01</b><strong>Enter once</strong><p>Paste your product and buy a permanent all-time placement.</p></article>
-            <article><b>02</b><strong>Rally supporters</strong><p>Each verified person can back one product per daily race.</p></article>
+            <article><b>02</b><strong>Build momentum</strong><p>Every manual backing counts, opens the product, and can be repeated.</p></article>
             <article><b>03</b><strong>Win the spotlight</strong><p>The crowd leader owns the homepage battle and a shareable daily result.</p></article>
           </div>
         </section>
@@ -1048,7 +1034,7 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
                 {submitting ? "Opening secure checkout…" : "Continue to Stripe"} <Icon name="arrow" size={17} />
               </button>
             </form>
-            <div className="arena-modal-foot"><Icon name="shield" size={13} /> One-time payment · Transparent paid rank · Free daily backing</div>
+            <div className="arena-modal-foot"><Icon name="shield" size={13} /> One-time payment · Transparent paid rank · Free repeat backing</div>
           </section>
         </div>
       )}

@@ -15,7 +15,7 @@ export default function TermsPage() {
       <h2>Availability</h2>
       <p>We work to keep rankings and click measurements accurate, but the service may be interrupted or changed. We may remove abusive traffic and correct rankings affected by payment reversals or technical errors.</p>
       <h2>Daily race</h2>
-      <p>Community backing is free and separate from paid placement. It provides a temporary daily crowd rank, not ownership, a prize, or a guaranteed volume of traffic. We may remove suspicious backing and prevent repeated participation.</p>
+      <p>Community backing is free and separate from paid placement. Manual repeat backing is allowed and each accepted backing counts as one action, not as a new unique visitor. It provides a temporary daily crowd rank, not ownership, a prize, or a guaranteed volume of traffic. We may rate-limit or remove automated, excessive, or suspicious backing.</p>
       <h2>Liability</h2>
       <p>To the maximum extent allowed by law, OverMCP is provided as-is and is not liable for indirect, incidental, or consequential losses arising from use of the service.</p>
     </LegalPage>
