@@ -1,6 +1,7 @@
 export type LeaderboardProduct = {
   id: string;
   rank: number;
+  crowdRank: number;
   name: string;
   description: string;
   category: string;
@@ -9,7 +10,24 @@ export type LeaderboardProduct = {
   creditCents: number;
   weeklyClicks: number;
   totalClicks: number;
+  supportersToday: number;
   latestBidAt: string;
+};
+
+export type CrowdRaceEvent = {
+  id: string;
+  productId: string;
+  happenedAt: string;
+};
+
+export type CrowdRace = {
+  day: string;
+  startsAt: string;
+  endsAt: string;
+  totalSupporters: number;
+  leaderId: string | null;
+  contenderIds: string[];
+  events: CrowdRaceEvent[];
 };
 
 export type ActivityItem = {
@@ -75,6 +93,7 @@ export type LeaderboardPayload = {
   marketHistory: MarketDay[];
   marketMoves: MarketMove[];
   rankHistory: RankRacePoint[];
+  crowdRace: CrowdRace;
   stats: {
     products: number;
     totalClicks: number;

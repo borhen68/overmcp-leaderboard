@@ -43,6 +43,13 @@
       "when": 1787386200000,
       "tag": "0005_minimum_bid_300",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787569200000,
+      "tag": "0006_daily_founder_race",
+      "breakpoints": true
     }
   ]
 }

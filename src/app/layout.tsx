@@ -1,12 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import "./globals.css";
+import "./founder-race.css";
 
 const siteUrl = "https://www.overmcp.com";
-const siteTitle = "OverMCP — The live product rank race";
+const siteTitle = "OverMCP — The live founder race";
 const siteDescription =
-  "Bid from $3, move up the live product leaderboard, and measure the real clicks your position earns.";
-const socialImage = "/opengraph-image?v=rank-race-20260823";
+  "Enter your product, rally verified supporters, and race for today’s crowd-chosen #1 spot.";
+const socialImage = "/opengraph-image?v=founder-race-20260824";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -21,10 +22,10 @@ export const metadata: Metadata = {
   },
   alternates: { canonical: "/" },
   keywords: [
-    "product leaderboard",
+    "founder leaderboard",
+    "startup competition",
     "startup discovery",
     "product launch",
-    "sponsored ranking",
     "indie products",
   ],
   openGraph: {
@@ -38,7 +39,7 @@ export const metadata: Metadata = {
       url: socialImage,
       width: 1200,
       height: 630,
-      alt: "OverMCP live product leaderboard",
+      alt: "OverMCP live founder race",
     }],
   },
   twitter: {
@@ -73,13 +74,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           {`(function () {
             try {
               var saved = window.localStorage.getItem("overmcp-theme");
-              var theme = saved === "light" || saved === "dark"
-                ? saved
-                : window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+              var theme = saved === "light" || saved === "dark" ? saved : "light";
               document.documentElement.dataset.theme = theme;
               document.documentElement.style.colorScheme = theme;
             } catch (_) {
-              document.documentElement.dataset.theme = "dark";
+              document.documentElement.dataset.theme = "light";
             }
           })();`}
         </Script>

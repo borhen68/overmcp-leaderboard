@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "OverMCP",
     short_name: "OverMCP",
-    description: "The internet’s live product leaderboard.",
+    description: "The daily founder race decided by verified supporters.",
     start_url: "/",
     display: "standalone",
     background_color: "#f7f6ef",

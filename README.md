@@ -1,8 +1,10 @@
 # OverMCP
 
-The internet's live product leaderboard. Products make one-time bids for public
-placement; rankings, paid-bid activity, visitors, and outbound clicks all come
-from the production database. There is no seeded or fabricated leaderboard data.
+The internet's live founder race. Products make one-time bids for permanent
+all-time placement, while verified visitors choose a separate crowd champion
+every UTC day. Rankings, backing, paid-bid activity, visitors, and outbound
+clicks all come from the production database. There is no seeded or fabricated
+leaderboard data.
 
 ## Stack
 

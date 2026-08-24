@@ -1,7 +1,8 @@
 import { and, asc, count, desc, eq, gt, isNotNull, max, min, sql } from "drizzle-orm";
 import { getDatabase, isDatabaseConfigured } from "@/db";
-import { bids, outboundClicks, products, visitors } from "@/db/schema";
+import { bids, outboundClicks, products, raceSupports, visitors } from "@/db/schema";
 import { BID_INCREMENT_CENTS, MINIMUM_BID_CENTS } from "@/lib/constants";
+import { crowdRaceWindow } from "@/lib/crowd-race";
 import { isStripeConfigured } from "@/lib/stripe";
 import type { LeaderboardPayload } from "@/lib/types";
 
@@ -16,6 +17,7 @@ export function emptyLeaderboard(
   configured = isDatabaseConfigured(),
   available = configured,
 ): LeaderboardPayload {
+  const raceWindow = crowdRaceWindow();
   return {
     configured,
     available,
@@ -26,6 +28,15 @@ export function emptyLeaderboard(
     marketHistory: [],
     marketMoves: [],
     rankHistory: [],
+    crowdRace: {
+      day: raceWindow.day,
+      startsAt: raceWindow.startsAt.toISOString(),
+      endsAt: raceWindow.endsAt.toISOString(),
+      totalSupporters: 0,
+      leaderId: null,
+      contenderIds: [],
+      events: [],
+    },
     stats: {
       products: 0,
       totalClicks: 0,
@@ -48,6 +59,7 @@ export async function getLeaderboardData(): Promise<LeaderboardPayload> {
 
   try {
     const db = getDatabase();
+    const raceWindow = crowdRaceWindow();
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const paidBidTotals = db
@@ -189,6 +201,33 @@ export async function getLeaderboardData(): Promise<LeaderboardPayload> {
       marketMovesQuery,
     ]);
 
+    type SupportTotalRow = { productId: string; supporters: number };
+    type SupportEventRow = { id: string; productId: string; supportedAt: Date };
+    let supportTotalRows: SupportTotalRow[] = [];
+    let supportEventRows: SupportEventRow[] = [];
+
+    try {
+      [supportTotalRows, supportEventRows] = await Promise.all([
+        db
+          .select({ productId: raceSupports.productId, supporters: count() })
+          .from(raceSupports)
+          .innerJoin(products, eq(products.id, raceSupports.productId))
+          .where(and(eq(raceSupports.raceDay, raceWindow.day), eq(products.status, "active")))
+          .groupBy(raceSupports.productId),
+        db
+          .select({ id: raceSupports.id, productId: raceSupports.productId, supportedAt: raceSupports.supportedAt })
+          .from(raceSupports)
+          .innerJoin(products, eq(products.id, raceSupports.productId))
+          .where(and(eq(raceSupports.raceDay, raceWindow.day), eq(products.status, "active")))
+          .orderBy(desc(raceSupports.supportedAt))
+          .limit(1_000),
+      ]);
+    } catch (error) {
+      // Keep the paid leaderboard available during a rolling deploy before the
+      // race migration reaches the production database.
+      console.warn("Daily founder race is temporarily unavailable", error);
+    }
+
     let marketValueCents = 0;
     const marketHistory = marketHistoryRows.map((row) => {
       const openCents = marketValueCents;
@@ -206,7 +245,8 @@ export async function getLeaderboardData(): Promise<LeaderboardPayload> {
       };
     });
 
-    const rankedProducts = leaderboardRows.map((row, index) => ({
+    const supporterTotals = new Map(supportTotalRows.map((row) => [row.productId, row.supporters]));
+    const rankedProductBase = leaderboardRows.map((row, index) => ({
       id: row.id,
       rank: index + 1,
       name: row.name,
@@ -217,8 +257,20 @@ export async function getLeaderboardData(): Promise<LeaderboardPayload> {
       creditCents: row.creditCents,
       weeklyClicks: row.weeklyClicks,
       totalClicks: row.totalClicks,
+      supportersToday: supporterTotals.get(row.id) ?? 0,
       latestBidAt: (row.latestBidAt ?? row.createdAt).toISOString(),
     }));
+    const crowdOrder = [...rankedProductBase].sort((a, b) => (
+      b.supportersToday - a.supportersToday
+      || a.rank - b.rank
+    ));
+    const crowdRankById = new Map(crowdOrder.map((product, index) => [product.id, index + 1]));
+    const rankedProducts = rankedProductBase.map((product) => ({
+      ...product,
+      crowdRank: crowdRankById.get(product.id) ?? product.rank,
+    }));
+    const contenderIds = crowdOrder.slice(0, 3).map((product) => product.id);
+    const totalSupporters = supportTotalRows.reduce((total, row) => total + row.supporters, 0);
 
     const marketMoves = marketMoveRows.flatMap((row) => row.happenedAt ? [{
       id: row.id,
@@ -336,6 +388,19 @@ export async function getLeaderboardData(): Promise<LeaderboardPayload> {
       marketHistory,
       marketMoves,
       rankHistory,
+      crowdRace: {
+        day: raceWindow.day,
+        startsAt: raceWindow.startsAt.toISOString(),
+        endsAt: raceWindow.endsAt.toISOString(),
+        totalSupporters,
+        leaderId: totalSupporters > 0 ? contenderIds[0] ?? null : null,
+        contenderIds,
+        events: supportEventRows.reverse().map((row) => ({
+          id: row.id,
+          productId: row.productId,
+          happenedAt: row.supportedAt.toISOString(),
+        })),
+      },
       stats: {
         products: productCountRows[0]?.value ?? 0,
         totalClicks: clickCountRows[0]?.value ?? 0,

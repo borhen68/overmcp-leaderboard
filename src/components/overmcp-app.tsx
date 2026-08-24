@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { Logo } from "@/components/brand-logo";
 import { BID_INCREMENT_CENTS, PRODUCT_CATEGORIES } from "@/lib/constants";
 import type { LeaderboardPayload, LeaderboardProduct, MarketDay, MarketMove } from "@/lib/types";
 
@@ -70,20 +71,6 @@ function Icon({ name, size = 18, strokeWidth = 1.8 }: { name: string; size?: num
     <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
       {paths[name]}
     </svg>
-  );
-}
-
-export function Logo() {
-  return (
-    <a className="brand" href="/" aria-label="OverMCP home">
-      <span className="brand-glyph" aria-hidden="true">
-        <svg viewBox="0 0 64 64" role="presentation">
-          <rect width="64" height="64" rx="17" />
-          <circle cx="27" cy="37" r="16" />
-          <path d="M35 29 51 13M40 13h11v11" />
-        </svg>
-      </span>
-    </a>
   );
 }
 

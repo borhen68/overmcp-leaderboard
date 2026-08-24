@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Logo } from "@/components/overmcp-app";
+import { Logo } from "@/components/brand-logo";
 
 export function LegalPage({ eyebrow, title, updated, children }: { eyebrow: string; title: string; updated: string; children: ReactNode }) {
   return (

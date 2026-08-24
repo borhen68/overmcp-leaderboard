@@ -79,6 +79,24 @@ export const visitors = sqliteTable(
   (table) => [index("visitors_last_seen_idx").on(table.lastSeenAt)],
 );
 
+export const raceSupports = sqliteTable(
+  "race_supports",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    raceDay: text("race_day").notNull(),
+    productId: text("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+    visitorId: text("visitor_id").notNull(),
+    dedupeKey: text("dedupe_key").notNull(),
+    supportedAt: integer("supported_at", { mode: "timestamp_ms" }).default(nowInMilliseconds).notNull(),
+  },
+  (table) => [
+    uniqueIndex("race_supports_day_visitor_unique").on(table.raceDay, table.visitorId),
+    uniqueIndex("race_supports_day_signal_unique").on(table.raceDay, table.dedupeKey),
+    index("race_supports_day_product_idx").on(table.raceDay, table.productId),
+    index("race_supports_supported_at_idx").on(table.supportedAt),
+  ],
+);
+
 export const stripeEvents = sqliteTable("stripe_events", {
   id: text("id").primaryKey(),
   eventType: text("event_type").notNull(),
