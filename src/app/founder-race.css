@@ -933,6 +933,18 @@
   font-weight: 820;
   letter-spacing: -.04em;
 }
+.arena-row-rank strong { font: inherit; }
+.arena-row-rank small {
+  display: block;
+  margin-top: 4px;
+  color: var(--arena-muted);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
 
 .arena-row-logo {
   width: 58px;

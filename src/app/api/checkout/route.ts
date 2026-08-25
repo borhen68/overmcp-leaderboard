@@ -13,7 +13,7 @@ import { normalizeIdentity } from "@/lib/identity";
 import { allowRequest, clientAddress } from "@/lib/rate-limit";
 import { readJsonBody, RequestBodyTooLargeError } from "@/lib/request-body";
 import { getStripe } from "@/lib/stripe";
-import { verifyIconPayload } from "@/lib/website-metadata";
+import { getWebsiteMetadata, verifyIconPayload } from "@/lib/website-metadata";
 
 const targetRankSchema = z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(10)]);
 const checkoutSchema = z.object({
@@ -277,9 +277,17 @@ export async function POST(request: NextRequest) {
     }, { status: 409 });
   }
 
-  const iconDataUrl = verifyIconPayload(identity.identityKey, parsed.data.iconDataUrl, parsed.data.iconSignature)
+  let iconDataUrl = verifyIconPayload(identity.identityKey, parsed.data.iconDataUrl, parsed.data.iconSignature)
     ? parsed.data.iconDataUrl
     : null;
+  if (!iconDataUrl && !identity.identityKey.startsWith("x:")) {
+    try {
+      const metadata = await getWebsiteMetadata(parsed.data.identity);
+      if (metadata.identityKey === identity.identityKey) iconDataUrl = metadata.iconDataUrl;
+    } catch {
+      // A missing logo must never block a valid checkout.
+    }
+  }
   const now = new Date();
   await db
     .insert(products)
@@ -375,6 +383,11 @@ export async function POST(request: NextRequest) {
         ...(iconDataUrl ? { iconDataUrl } : {}),
         updatedAt: now,
       })
+      .where(eq(products.id, product.id));
+  } else if (iconDataUrl) {
+    await db
+      .update(products)
+      .set({ iconDataUrl, updatedAt: now })
       .where(eq(products.id, product.id));
   }
 

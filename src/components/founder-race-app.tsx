@@ -294,7 +294,7 @@ function CrowdRaceChart({
 
 export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayload }) {
   const [data, setData] = useState(initialData);
-  const [boardView, setBoardView] = useState<BoardView>("today");
+  const [boardView, setBoardView] = useState<BoardView>("all-time");
   const [category, setCategory] = useState("All");
   const [theme, setTheme] = useState<Theme>("light");
   const [identity, setIdentity] = useState("");
@@ -376,7 +376,8 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
 
     const checkout = new URLSearchParams(window.location.search).get("checkout");
     if (checkout === "success") {
-      setToast("Payment received. Your product joins after Stripe confirms it.");
+      setBoardView("all-time");
+      setToast("Payment received. Your paid position appears here after Stripe confirms it.");
       window.history.replaceState({}, "", window.location.pathname);
     } else if (checkout === "cancelled") {
       setToast("Checkout cancelled. Nothing was charged.");
@@ -860,7 +861,12 @@ export function FounderRaceApp({ initialData }: { initialData: LeaderboardPayloa
               const wasLastBacked = lastBackedProductId === product.id;
               return (
                 <article className={"arena-product-row " + (displayRank === 1 ? "is-leading" : "")} key={product.id}>
-                  <div className="arena-row-rank">#{displayRank}</div>
+                  <div className="arena-row-rank">
+                    <strong>#{displayRank}</strong>
+                    {boardView === "today" && (
+                      <small>#{product.rank} paid</small>
+                    )}
+                  </div>
                   <a
                     className="arena-product-logo-link"
                     href={"/go/" + product.id}
